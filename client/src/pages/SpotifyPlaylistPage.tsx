@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { usePlayer } from '../contexts/PlayerContext';
 import api from '../utils/api';
-import { FiPlay, FiPause, FiClock, FiArrowLeft, FiMusic } from 'react-icons/fi';
+import { FiPlay, FiClock, FiArrowLeft, FiMusic } from 'react-icons/fi';
 import type { Track } from '../types';
 
 interface SpotifyPlaylistData {
@@ -20,7 +20,7 @@ interface SpotifyPlaylistData {
 const SpotifyPlaylistPage: React.FC = () => {
   const { playlistId } = useParams<{ playlistId: string }>();
   const navigate = useNavigate();
-  const { playTrack, currentTrack, isPlaying, togglePlayPause } = usePlayer();
+  const { playTrack, currentTrack, isPlaying } = usePlayer();
   
   const [playlist, setPlaylist] = useState<SpotifyPlaylistData | null>(null);
   const [tracks, setTracks] = useState<Track[]>([]);
@@ -58,7 +58,7 @@ const SpotifyPlaylistPage: React.FC = () => {
     }
   };
 
-  const handlePlayTrack = async (track: Track, index: number) => {
+  const handlePlayTrack = async (track: Track, _index: number) => {
     await playTrack(track, tracks);
   };
 

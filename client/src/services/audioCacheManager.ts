@@ -210,7 +210,7 @@ class AudioCacheManager {
       }
 
       // Create blob from chunks
-      const blob = new Blob(chunks, { type: `audio/${format}` });
+      const blob = new Blob(chunks as BlobPart[], { type: `audio/${format}` });
 
       // Save to IndexedDB with track metadata
       const cachedAudio: CachedAudio = {
@@ -270,7 +270,7 @@ class AudioCacheManager {
   /**
    * Internal cache implementation
    */
-  private async _performCache(track: Track, source?: AudioSource): Promise<void> {
+  private async _performCache(track: Track, source?: AudioSource | null): Promise<void> {
     try {
       this.notifySyncStatus({
         trackId: track.id,
@@ -324,7 +324,7 @@ class AudioCacheManager {
       }
 
       // Create blob from chunks
-      const blob = new Blob(chunks, { type: `audio/${source.format}` });
+      const blob = new Blob(chunks as BlobPart[], { type: `audio/${source.format}` });
 
       // Save to IndexedDB
       const cachedAudio: CachedAudio = {

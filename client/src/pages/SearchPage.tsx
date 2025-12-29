@@ -49,12 +49,12 @@ const browseCategories: BrowseCategory[] = [
 ];
 
 const SearchPage: React.FC = () => {
-  const { playTrack, currentTrack, isPlaying } = usePlayer();
+  const { playTrack, currentTrack } = usePlayer();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchTrack[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
-  const [total, setTotal] = useState(0);
+  const [, setTotal] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [offset, setOffset] = useState(0);
   const [topResult, setTopResult] = useState<SearchTrack | null>(null);

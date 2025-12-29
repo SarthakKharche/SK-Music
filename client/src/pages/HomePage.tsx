@@ -42,10 +42,10 @@ const HomePage: React.FC = () => {
   const { syncPlaylists, isOffline } = useOffline();
   const { playTrack } = usePlayer();
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
-  const [featuredPlaylists, setFeaturedPlaylists] = useState<SpotifyPlaylist[]>([]);
+  const [featuredPlaylists] = useState<SpotifyPlaylist[]>([]);
   const [categorySections, setCategorySections] = useState<CategorySection[]>([]);
   const [recentTracks, setRecentTracks] = useState<Track[]>([]);
-  const [featuredMessage, setFeaturedMessage] = useState('');
+  const [featuredMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const hasLoadedSections = useRef(false);
@@ -167,20 +167,6 @@ const HomePage: React.FC = () => {
       } else {
         console.error('Failed to load curated sections:', error);
       }
-    }
-  };
-
-  const loadFeaturedPlaylists = async () => {
-    try {
-      console.log('[HomePage] Loading featured playlists...');
-      const response = await api.get<{ message: string; playlists: SpotifyPlaylist[] }>(
-        '/spotify/browse/featured?country=IN&limit=12'
-      );
-      console.log('[HomePage] Featured playlists:', response.data);
-      setFeaturedPlaylists(response.data.playlists);
-      setFeaturedMessage(response.data.message);
-    } catch (error) {
-      console.error('Failed to load featured playlists:', error);
     }
   };
 

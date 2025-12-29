@@ -101,7 +101,7 @@ export const OfflineProvider: React.FC<{ children: ReactNode }> = ({ children })
   /**
    * Download entire playlist for offline use
    */
-  const downloadPlaylist = async (playlistId: string, tracks: Track[]): Promise<void> => {
+  const downloadPlaylist = async (_playlistId: string, tracks: Track[]): Promise<void> => {
     // Mark tracks as offline preferred
     await Promise.all(
       tracks.map((track) =>

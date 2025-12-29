@@ -9,14 +9,14 @@ import api from '../utils/api';
 
 const SettingsPage: React.FC = () => {
   const { user, connectSpotify } = useAuth();
-  const { getCacheSize, clearCache } = useOffline();
+  const { clearCache } = useOffline();
   const [stats, setStats] = useState({
     trackCount: 0,
     playlistCount: 0,
     cachedAudioCount: 0,
     totalCacheSizeBytes: 0,
   });
-  const [userStats, setUserStats] = useState({
+  const [, setUserStats] = useState({
     playlistCount: 0,
     trackCount: 0,
     offlineTrackCount: 0,

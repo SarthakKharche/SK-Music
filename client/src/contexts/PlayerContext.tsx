@@ -83,7 +83,7 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   });
 
   const [isYouTube, setIsYouTube] = useState(false);
-  const [youtubeReady, setYoutubeReady] = useState(false);
+  const [, setYoutubeReady] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const youtubePlayerRef = useRef<YouTubePlayer | null>(null);
   const timeUpdateIntervalRef = useRef<number | null>(null);
