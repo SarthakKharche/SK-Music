@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { audioCacheManager } from '../services/audioCacheManager';
 import { indexedDB } from '../services/indexedDB';
+import { recordListeningEvent } from '../services/madeForYouApi';
 import type { Track, PlayerState } from '../types';
 
 // Extend window to include YouTube IFrame API
@@ -89,6 +90,40 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const timeUpdateIntervalRef = useRef<number | null>(null);
 
   /**
+   * Track listening progress for Made-For-You recommendations.
+   * Fires a 'complete' event when >=90% heard, 'skip' on early next/previous.
+   */
+  const trackingRef = useRef<{ trackId: string; startTime: number; reported: boolean } | null>(null);
+
+  const reportListeningEvent = (track: Track, eventType: 'play' | 'skip' | 'complete', pct: number) => {
+    try {
+      recordListeningEvent({
+        trackId: track.id,
+        eventType,
+        completionPercentage: Math.round(Math.max(0, Math.min(100, pct))),
+        trackName: track.name,
+        artistNames: track.artists.map((a) => a.name),
+      }).catch(() => { /* fire-and-forget; offline queue handled by context */ });
+    } catch { /* ignore */ }
+  };
+
+  /** Call when leaving a track (next/prev/new play). Reports skip or complete. */
+  const finaliseTracking = () => {
+    const info = trackingRef.current;
+    if (!info || info.reported) return;
+    const prev = state.currentTrack;
+    if (!prev || prev.id !== info.trackId) return;
+
+    const pct = state.duration > 0 ? (state.currentTime / state.duration) * 100 : 0;
+    if (pct >= 90) {
+      reportListeningEvent(prev, 'complete', pct);
+    } else if (pct > 0) {
+      reportListeningEvent(prev, 'skip', pct);
+    }
+    info.reported = true;
+  };
+
+  /**
    * Load YouTube IFrame API
    */
   useEffect(() => {
@@ -110,18 +145,38 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
    * Create hidden YouTube player container
    */
   useEffect(() => {
-    if (!document.getElementById('youtube-player-container')) {
-      const container = document.createElement('div');
+    let container = document.getElementById('youtube-player-container');
+    if (!container) {
+      container = document.createElement('div');
       container.id = 'youtube-player-container';
-      container.style.position = 'absolute';
-      container.style.left = '-9999px';
-      container.style.top = '-9999px';
-      container.style.width = '1px';
-      container.style.height = '1px';
-      container.innerHTML = '<div id="youtube-player"></div>';
+      container.style.position = 'fixed';
+      container.style.bottom = '100px';
+      container.style.right = '24px';
+      container.style.width = '240px';
+      container.style.height = '135px';
+      container.style.zIndex = '9999';
+      container.style.borderRadius = '12px';
+      container.style.overflow = 'hidden';
+      container.style.boxShadow = '0 10px 30px rgba(0,0,0,0.5)';
+      container.style.border = '1px solid rgba(255,255,255,0.1)';
+      container.style.pointerEvents = 'none';
+      container.style.transition = 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
+      container.style.opacity = '0';
+      container.style.transform = 'scale(0.8)';
+      container.style.transformOrigin = 'bottom right';
+      container.innerHTML = '<div id="youtube-player" style="width: 100%; height: 100%;"></div>';
       document.body.appendChild(container);
     }
   }, []);
+
+  useEffect(() => {
+    const container = document.getElementById('youtube-player-container');
+    if (container) {
+      container.style.opacity = isYouTube ? '1' : '0';
+      container.style.transform = isYouTube ? 'scale(1)' : 'scale(0.8)';
+      container.style.pointerEvents = isYouTube ? 'auto' : 'none';
+    }
+  }, [isYouTube]);
 
   /**
    * Initialize audio element
@@ -142,7 +197,17 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       handleTrackEnd();
     });
 
+    audio.addEventListener('play', () => {
+      setState((prev) => ({ ...prev, isPlaying: true }));
+    });
+
+    audio.addEventListener('pause', () => {
+      setState((prev) => ({ ...prev, isPlaying: false }));
+    });
+
     audio.addEventListener('error', (e) => {
+      // Ignore errors when no source is set (initial mount)
+      if (!audio.src || audio.src === window.location.href) return;
       console.error('Audio playback error:', e);
       setState((prev) => ({ ...prev, isPlaying: false }));
     });
@@ -163,12 +228,19 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     if (!audio) return;
 
     try {
+      // Finalise tracking for the previous track before switching
+      finaliseTracking();
+
       // Update current track immediately for UI feedback
       setState((prev) => ({
         ...prev,
         currentTrack: track,
         isPlaying: false, // Will be set to true once audio starts
       }));
+
+      // Start tracking the new track
+      trackingRef.current = { trackId: track.id, startTime: Date.now(), reported: false };
+      reportListeningEvent(track, 'play', 0);
 
       // Add to listening history
       indexedDB.addToHistory(track).catch(console.error);
@@ -251,10 +323,22 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             if (!container) {
               const wrapper = document.createElement('div');
               wrapper.id = 'youtube-player-container';
-              wrapper.style.position = 'absolute';
-              wrapper.style.left = '-9999px';
-              wrapper.style.top = '-9999px';
-              wrapper.innerHTML = '<div id="youtube-player"></div>';
+              wrapper.style.position = 'fixed';
+              wrapper.style.bottom = '100px';
+              wrapper.style.right = '24px';
+              wrapper.style.width = '240px';
+              wrapper.style.height = '135px';
+              wrapper.style.zIndex = '9999';
+              wrapper.style.borderRadius = '12px';
+              wrapper.style.overflow = 'hidden';
+              wrapper.style.boxShadow = '0 10px 30px rgba(0,0,0,0.5)';
+              wrapper.style.border = '1px solid rgba(255,255,255,0.1)';
+              wrapper.style.pointerEvents = 'none';
+              wrapper.style.transition = 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
+              wrapper.style.opacity = '1';
+              wrapper.style.transform = 'scale(1)';
+              wrapper.style.transformOrigin = 'bottom right';
+              wrapper.innerHTML = '<div id="youtube-player" style="width: 100%; height: 100%;"></div>';
               document.body.appendChild(wrapper);
               container = document.getElementById('youtube-player');
             } else {
@@ -262,13 +346,15 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
               container.innerHTML = '';
               const newPlayer = document.createElement('div');
               newPlayer.id = 'youtube-player';
+              newPlayer.style.width = '100%';
+              newPlayer.style.height = '100%';
               container.parentElement?.replaceChild(newPlayer, container);
             }
             
             try {
               youtubePlayerRef.current = new window.YT.Player('youtube-player', {
-                height: '1',
-                width: '1',
+                height: '100%',
+                width: '100%',
                 videoId: videoId,
                 playerVars: {
                   autoplay: 1,
@@ -462,6 +548,12 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
    * Handle track end
    */
   const handleTrackEnd = (): void => {
+    // Report completion for the track that just ended
+    if (state.currentTrack && trackingRef.current && !trackingRef.current.reported) {
+      reportListeningEvent(state.currentTrack, 'complete', 100);
+      trackingRef.current.reported = true;
+    }
+
     if (state.repeat === 'one') {
       // Replay current track
       if (isYouTube && youtubePlayerRef.current && typeof youtubePlayerRef.current.seekTo === 'function') {

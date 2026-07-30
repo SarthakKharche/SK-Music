@@ -46,10 +46,10 @@ router.post('/offline-preferences', isAuthenticated, async (req, res) => {
 
     for (const trackId of trackIds) {
       const trackRef = db.collection('tracks').doc(trackId);
-      batch.update(trackRef, {
+      batch.set(trackRef, {
         isOfflinePreferred,
         updatedAt: new Date().toISOString(),
-      });
+      }, { merge: true });
     }
 
     await batch.commit();

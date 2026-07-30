@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import { getFirestore } from '../config/firebase';
 import type { User as AppUser } from '../types/user.types';
 
 /**
@@ -28,13 +29,15 @@ declare global {
 
 /**
  * Middleware to check if user is authenticated
- * Supports both session-based auth and JWT Bearer tokens
+ * Supports both session-based auth and JWT Bearer tokens.
+ * When using JWT, hydrates the full user from Firestore so downstream
+ * middleware (e.g. hasSpotifyConnected) has all user fields.
  */
-export const isAuthenticated = (
+export const isAuthenticated = async (
   req: Request,
   res: Response,
   next: NextFunction
-): void => {
+): Promise<void> => {
   // First, check session-based auth
   if (req.isAuthenticated()) {
     return next();
@@ -45,8 +48,17 @@ export const isAuthenticated = (
   if (authHeader && authHeader.startsWith('Bearer ')) {
     const token = authHeader.substring(7);
     try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET!) as Express.User;
-      req.user = decoded;
+      const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { uid: string; email: string };
+
+      // Hydrate full user from Firestore so spotifyConnected etc. are available
+      const db = getFirestore();
+      const userDoc = await db.collection('users').doc(decoded.uid).get();
+      if (userDoc.exists) {
+        req.user = userDoc.data() as Express.User;
+      } else {
+        req.user = decoded as any;
+      }
+
       return next();
     } catch (error) {
       // Token invalid, fall through to unauthorized
@@ -59,11 +71,11 @@ export const isAuthenticated = (
 /**
  * Middleware to check if user has connected Spotify
  */
-export const hasSpotifyConnected = (
+export const hasSpotifyConnected = async (
   req: Request,
   res: Response,
   next: NextFunction
-): void => {
+): Promise<void> => {
   const user = req.user as AppUser;
 
   if (!user) {
@@ -76,5 +88,14 @@ export const hasSpotifyConnected = (
     return;
   }
 
-  next();
+  try {
+    const { SpotifyService } = await import('../services/spotify.service');
+    const spotifyService = new SpotifyService();
+    // Pre-emptively fetch/refresh token to handle auth errors gracefully
+    await spotifyService.getUserAccessToken(user.uid);
+    next();
+  } catch (error: any) {
+    console.error('[Middleware] Spotify auth token validation failed:', error.message);
+    res.status(403).json({ error: 'Spotify session expired. Please reconnect your Spotify account.' });
+  }
 };

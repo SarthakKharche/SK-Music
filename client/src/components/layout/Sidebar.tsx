@@ -5,7 +5,7 @@ import {
   FiDownload, 
   FiSettings, 
   FiMusic,
-  FiLogOut 
+  FiLogOut
 } from 'react-icons/fi';
 import { MdCategory } from 'react-icons/md';
 import { useAuth } from '../../contexts/AuthContext';
@@ -70,6 +70,21 @@ const Sidebar: React.FC = () => {
             <FiHome size={18} />
             <span className="font-semibold">Home</span>
             <span className="ml-auto h-2 w-2 rounded-full bg-spotify-green/60 opacity-0 group-hover:opacity-100 transition" />
+          </NavLink>
+
+          <NavLink
+            to="/youtube-music"
+            className={({ isActive }) =>
+              `group flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
+                isActive
+                  ? 'bg-red-600/20 text-white shadow-[0_10px_30px_rgba(239,68,68,0.15)] border border-red-500/20'
+                  : 'text-white/60 hover:text-white hover:bg-white/5 border border-transparent'
+              }`
+            }
+          >
+            <FiMusic size={18} className="text-red-500" />
+            <span className="font-semibold text-white/90 group-hover:text-white">YT Music Home</span>
+            <span className="ml-auto h-2 w-2 rounded-full bg-red-500 opacity-0 group-hover:opacity-100 transition" />
           </NavLink>
 
           <NavLink

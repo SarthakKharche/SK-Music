@@ -7,7 +7,7 @@ import path from 'path';
 export default defineConfig({
   plugins: [
     react(),
-    basicSsl(),
+    // basicSsl(),
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
@@ -95,11 +95,13 @@ export default defineConfig({
     }
   },
   server: {
+    host: '127.0.0.1',
     port: 5173,
-    https: true,
+    strictPort: true,
+    https: false,
     proxy: {
       '/api': {
-        target: 'http://localhost:5000',
+        target: 'http://127.0.0.1:5000',
         changeOrigin: true,
         secure: false
       }

@@ -1,9 +1,38 @@
+import { useState } from 'react';
 import { FiMusic } from 'react-icons/fi';
 import { FcGoogle } from 'react-icons/fc';
 
 const LoginPage: React.FC = () => {
-  const handleGoogleLogin = () => {
-    window.location.href = '/api/auth/google';
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const getAuthUrl = (): string => {
+    const apiUrl = import.meta.env.VITE_API_URL;
+    if (apiUrl) {
+      return apiUrl.endsWith('/api') ? `${apiUrl}/auth/google` : `${apiUrl}/api/auth/google`;
+    }
+    // Development: navigate directly to the backend to avoid Vite proxy issues with OAuth redirects
+    return 'http://localhost:5000/api/auth/google';
+  };
+
+  const handleGoogleLogin = async () => {
+    setLoading(true);
+    setError(null);
+
+    const authUrl = getAuthUrl();
+
+    // First, check if the server is reachable
+    try {
+      const healthUrl = authUrl.replace('/api/auth/google', '/health');
+      await fetch(healthUrl, { mode: 'cors' });
+    } catch {
+      setError('Cannot reach the server. Make sure the backend is running on port 5000.');
+      setLoading(false);
+      return;
+    }
+
+    // Navigate to Google OAuth
+    window.location.href = authUrl;
   };
 
   return (
@@ -41,12 +70,30 @@ const LoginPage: React.FC = () => {
         {/* Login Button */}
         <button
           onClick={handleGoogleLogin}
+          disabled={loading}
           className="w-full bg-white text-spotify-black font-semibold py-3 px-6 rounded-full 
-                     hover:bg-gray-100 transition-colors flex items-center justify-center gap-3"
+                     hover:bg-gray-100 transition-colors flex items-center justify-center gap-3
+                     disabled:opacity-60 disabled:cursor-not-allowed"
         >
-          <FcGoogle size={24} />
-          <span>Continue with Google</span>
+          {loading ? (
+            <>
+              <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-spotify-black"></div>
+              <span>Connecting...</span>
+            </>
+          ) : (
+            <>
+              <FcGoogle size={24} />
+              <span>Continue with Google</span>
+            </>
+          )}
         </button>
+
+        {/* Error message */}
+        {error && (
+          <div className="mt-4 p-3 bg-red-900/50 border border-red-500 rounded-lg text-red-200 text-sm text-center">
+            {error}
+          </div>
+        )}
 
         {/* Legal Notice */}
         <p className="text-xs text-spotify-lightgray text-center mt-6">

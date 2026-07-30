@@ -18,6 +18,7 @@ export interface AudioSource {
  * Audio resolver request
  */
 export interface AudioResolveRequest {
+  trackId?: string;
   trackName: string;
   artistName: string;
   albumName?: string;

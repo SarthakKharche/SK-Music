@@ -18,6 +18,7 @@ class AudioCacheManager {
   async resolveAudioSource(track: Track): Promise<AudioSource | null> {
     try {
       const response = await api.post<{ sources: AudioSource[] }>('/audio/resolve', {
+        trackId: track.id,
         trackName: track.name,
         artistName: track.artists[0]?.name,
         albumName: track.album.name,
@@ -74,31 +75,24 @@ class AudioCacheManager {
     // Resolve audio source from YouTube (online only)
     const source = await this.resolveAudioSource(track);
     
+    const streamUrlPrefix = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
     if (!source) {
       // If we have a stored YouTube ID as fallback, use it
       if (storedYoutubeId) {
         console.log('Fallback: Using stored YouTube ID for:', track.name);
-        // Start background download for offline
-        this.downloadForOffline(track, storedYoutubeId).catch(err => 
-          console.error('[OFFLINE] Background download error:', err)
-        );
-        return `youtube:${storedYoutubeId}`;
+        return `${streamUrlPrefix}/audio/download/${storedYoutubeId}`;
       }
       console.warn('No audio source found for track:', track.name);
       return null;
     }
 
-    // If it's a YouTube source, store and return the YouTube URL format for IFrame player
+    // If it's a YouTube source, return the server's streaming URL
     if (source.youtubeId) {
       console.log('Using YouTube source for:', track.name, source.youtubeId);
       localStorage.setItem(`youtube_${track.id}`, source.youtubeId);
       
-      // Start background download for offline availability
-      this.downloadForOffline(track, source.youtubeId).catch(err =>
-        console.error('[OFFLINE] Background download error:', err)
-      );
-      
-      return `youtube:${source.youtubeId}`;
+      return `${streamUrlPrefix}/audio/download/${source.youtubeId}`;
     }
 
     // For direct audio URLs, cache in background
@@ -257,7 +251,32 @@ class AudioCacheManager {
       return this.downloadQueue.get(trackId);
     }
 
-    const downloadPromise = this._performCache(track, source);
+    const downloadPromise = (async () => {
+      let youtubeId = localStorage.getItem(`youtube_${track.id}`) || 
+                      (track.id.startsWith('yt-') ? track.id.replace('yt-', '') : null);
+      
+      // If the ID itself looks like a YouTube ID (length 11), use it directly
+      if (!youtubeId && track.id.length === 11) {
+        youtubeId = track.id;
+      }
+
+      // If we don't have the YouTube ID, resolve it via the API
+      if (!youtubeId || youtubeId.length !== 11) {
+        const resolved = source || await this.resolveAudioSource(track);
+        if (resolved?.youtubeId) {
+          youtubeId = resolved.youtubeId;
+          localStorage.setItem(`youtube_${track.id}`, youtubeId);
+        }
+      }
+
+      if (!youtubeId || youtubeId.length !== 11) {
+        throw new Error('No YouTube ID available for this track');
+      }
+
+      // Call the internal downloader directly to avoid queue key conflicts
+      await this._downloadFromYouTube(track, youtubeId);
+    })();
+
     this.downloadQueue.set(trackId, downloadPromise);
 
     try {

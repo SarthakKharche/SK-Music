@@ -4,6 +4,10 @@ import { Workbox } from 'workbox-window';
  * Register Service Worker for PWA functionality
  */
 export const registerSW = (): void => {
+  if (!import.meta.env.PROD) {
+    return;
+  }
+
   if ('serviceWorker' in navigator) {
     const wb = new Workbox('/sw.js');
 

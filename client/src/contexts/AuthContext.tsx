@@ -26,10 +26,20 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       
       if (token) {
         try {
-          const response = await api.get<User>('/auth/me');
+          // Add a timeout so we don't hang forever if server is unreachable
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 8000);
+          
+          const response = await api.get<User>('/auth/me', {
+            signal: controller.signal,
+          });
+          clearTimeout(timeout);
           setUser(response.data);
-        } catch (error) {
+        } catch (error: any) {
           console.error('Failed to load user:', error);
+          if (error?.name === 'AbortError' || error?.code === 'ECONNABORTED') {
+            console.warn('Auth check timed out — server may be unreachable');
+          }
           localStorage.removeItem('authToken');
         }
       }

@@ -2,12 +2,13 @@ import { useEffect, useState, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useOffline } from '../contexts/OfflineContext';
 import { usePlayer } from '../contexts/PlayerContext';
+import { useMadeForYou } from '../contexts/MadeForYouContext';
 import { indexedDB } from '../services/indexedDB';
 import api from '../utils/api';
-import { FiMusic, FiPlay, FiClock } from 'react-icons/fi';
+import { FiMusic, FiPlay, FiClock, FiZap, FiHeadphones, FiRefreshCw } from 'react-icons/fi';
 import { SiSpotify } from 'react-icons/si';
 import { MdCategory } from 'react-icons/md';
-import type { Playlist, Track } from '../types';
+import type { Playlist, Track, MadeForYouPlaylist, MadeForYouTrackEntry } from '../types';
 import { useNavigate } from 'react-router-dom';
 
 interface SpotifyPlaylist {
@@ -37,18 +38,47 @@ interface CategorySection {
   playlists: SpotifyPlaylist[];
 }
 
+/** Convert a MadeForYouTrackEntry to Track for the player */
+function mfyEntryToTrack(entry: MadeForYouTrackEntry, playlistId: string, userId: string): Track {
+  return {
+    id: entry.trackId,
+    playlistId,
+    userId,
+    name: entry.name,
+    artists: entry.artists,
+    album: entry.album,
+    durationMs: entry.durationMs,
+    explicit: entry.explicit,
+    isrc: entry.isrc,
+    spotifyUrl: entry.spotifyUrl,
+    previewUrl: entry.previewUrl,
+    isOfflinePreferred: false,
+    addedAt: '',
+  };
+}
+
 const HomePage: React.FC = () => {
   const { user, connectSpotify } = useAuth();
   const { syncPlaylists, isOffline } = useOffline();
   const { playTrack } = usePlayer();
+  const {
+    playlists: mfyPlaylists,
+    loading: mfyLoading,
+    hasImported: mfyImported,
+    importFromSpotify: mfyImport,
+    regenerate: mfyRegenerate,
+    recordEvent,
+  } = useMadeForYou();
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [featuredPlaylists] = useState<SpotifyPlaylist[]>([]);
   const [categorySections, setCategorySections] = useState<CategorySection[]>([]);
   const [recentTracks, setRecentTracks] = useState<Track[]>([]);
   const [featuredMessage] = useState('');
   const [loading, setLoading] = useState(true);
+  const [mfyRegenerating, setMfyRegenerating] = useState(false);
   const navigate = useNavigate();
   const hasLoadedSections = useRef(false);
+  const mfyImportAttempted = useRef(false);
 
   // Get greeting based on time of day
   const getGreeting = () => {
@@ -176,6 +206,41 @@ const HomePage: React.FC = () => {
     } catch (error) {
       console.error('Failed to connect Spotify:', error);
     }
+  };
+
+  // Auto-import Made For You playlists on first visit when Spotify is connected
+  // Also re-import if existing playlists are all empty (previous failed import)
+  useEffect(() => {
+    if (!user?.spotifyConnected || mfyImportAttempted.current || isOffline || mfyLoading) return;
+    const allEmpty = mfyPlaylists.length > 0 && mfyPlaylists.every((p) => p.tracks.length === 0);
+    if (!mfyImported || allEmpty) {
+      mfyImportAttempted.current = true;
+      // Force re-import if playlists are empty, normal import otherwise
+      mfyImport(allEmpty ? false : true).catch((err) => console.error('[MFY] Auto-import failed:', err));
+    }
+  }, [user?.spotifyConnected, mfyImported, mfyPlaylists, isOffline, mfyLoading, mfyImport]);
+
+  const handleMfyRegenerate = async () => {
+    setMfyRegenerating(true);
+    try {
+      const allEmpty = mfyPlaylists.every((p) => p.tracks.length === 0);
+      if (allEmpty && user?.spotifyConnected) {
+        // Force re-import from Spotify when playlists are empty
+        await mfyImport(false);
+      } else {
+        await mfyRegenerate();
+      }
+    } finally { setMfyRegenerating(false); }
+  };
+
+  const handlePlayMfyPlaylist = async (playlist: MadeForYouPlaylist, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (playlist.tracks.length === 0) return;
+    const first = playlist.tracks[0];
+    const track = mfyEntryToTrack(first, playlist.id, playlist.userId);
+    const queue = playlist.tracks.map((t) => mfyEntryToTrack(t, playlist.id, playlist.userId));
+    recordEvent(track, 'play', 0);
+    await playTrack(track, queue);
   };
 
   const handlePlayPlaylist = async (playlist: Playlist | SpotifyPlaylist, e: React.MouseEvent) => {
@@ -331,6 +396,130 @@ const HomePage: React.FC = () => {
             ))}
           </div>
         </div>
+      )}
+
+      {/* ─── Made For You Section ─── */}
+      {(mfyPlaylists.length > 0 || mfyLoading) && (
+        <section className="px-6 pb-8">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <FiZap className="text-purple-400" size={24} />
+              <div>
+                <h2 className="text-2xl font-bold text-white">Made For You</h2>
+                <p className="text-spotify-lightgray text-xs mt-0.5">
+                  Initially inspired by Spotify, now personalized by your listening here
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={handleMfyRegenerate}
+              disabled={mfyRegenerating || mfyLoading}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/15 text-white/70 hover:text-white text-xs font-medium transition disabled:opacity-40 border border-white/5"
+              title="Refresh recommendations"
+            >
+              <FiRefreshCw className={mfyRegenerating ? 'animate-spin' : ''} size={13} />
+              {mfyRegenerating ? 'Refreshing…' : 'Refresh'}
+            </button>
+          </div>
+
+          {mfyLoading && mfyPlaylists.length === 0 ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="bg-[#181818] rounded-md p-4 animate-pulse">
+                  <div className="w-full aspect-square bg-white/5 rounded-md mb-4" />
+                  <div className="h-4 bg-white/5 rounded w-3/4 mb-2" />
+                  <div className="h-3 bg-white/5 rounded w-1/2" />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
+              {mfyPlaylists.map((mfyPl) => (
+                <div
+                  key={mfyPl.id}
+                  onClick={() => navigate(`/made-for-you/${mfyPl.id}`)}
+                  className="group bg-[#181818] hover:bg-[#282828] rounded-md p-4 cursor-pointer transition-all duration-300"
+                >
+                  {/* Cover Art */}
+                  <div className="relative mb-4">
+                    {mfyPl.imageUrl ? (
+                      <img
+                        src={mfyPl.imageUrl}
+                        alt={mfyPl.displayName}
+                        className="w-full aspect-square object-cover rounded-md shadow-lg"
+                      />
+                    ) : mfyPl.tracks.length > 0 ? (
+                      /* Mosaic of album arts from tracks */
+                      <div className="w-full aspect-square rounded-md shadow-lg overflow-hidden grid grid-cols-2 grid-rows-2">
+                        {(() => {
+                          // Get up to 4 unique album images
+                          const seen = new Set<string>();
+                          const imgs: string[] = [];
+                          for (const t of mfyPl.tracks) {
+                            const url = t.album?.imageUrl;
+                            if (url && !seen.has(url)) {
+                              seen.add(url);
+                              imgs.push(url);
+                              if (imgs.length >= 4) break;
+                            }
+                          }
+                          // Fill to 4 by repeating
+                          while (imgs.length < 4 && imgs.length > 0) {
+                            imgs.push(imgs[imgs.length % imgs.length]);
+                          }
+                          return imgs.map((url, i) => (
+                            <img key={i} src={url} alt="" className="w-full h-full object-cover" />
+                          ));
+                        })()}
+                      </div>
+                    ) : (
+                      <div className={`w-full aspect-square rounded-md flex items-center justify-center shadow-lg ${
+                        mfyPl.type === 'discover_weekly'
+                          ? 'bg-gradient-to-br from-indigo-600/60 to-purple-800/60'
+                          : 'bg-gradient-to-br from-emerald-600/60 to-teal-800/60'
+                      }`}>
+                        {mfyPl.type === 'discover_weekly' ? (
+                          <FiZap className="text-white/60" size={40} />
+                        ) : (
+                          <FiHeadphones className="text-white/60" size={40} />
+                        )}
+                      </div>
+                    )}
+
+                    {/* Play Button */}
+                    <button
+                      onClick={(e) => handlePlayMfyPlaylist(mfyPl, e)}
+                      className="absolute right-2 bottom-2 w-12 h-12 bg-spotify-green rounded-full
+                                 flex items-center justify-center shadow-xl
+                                 opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0
+                                 transition-all duration-300 hover:scale-105"
+                    >
+                      <FiPlay className="text-black ml-1" size={24} />
+                    </button>
+
+                    {/* Source Badge */}
+                    <span className={`absolute top-2 left-2 text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded-full backdrop-blur-sm font-semibold ${
+                      mfyPl.source === 'spotify_seed'
+                        ? 'bg-green-500/20 text-green-300 border border-green-500/30'
+                        : 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
+                    }`}>
+                      {mfyPl.source === 'spotify_seed' ? 'Seed' : 'For You'}
+                    </span>
+                  </div>
+
+                  {/* Info */}
+                  <h3 className="text-white font-bold truncate mb-1">
+                    {mfyPl.displayName}
+                  </h3>
+                  <p className="text-spotify-lightgray text-sm line-clamp-2">
+                    {mfyPl.tracks.length} tracks
+                    {mfyPl.tracks.length > 0 && ` · ${mfyPl.tracks.slice(0, 3).map((t) => t.artists[0]?.name).filter(Boolean).join(', ')}`}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
       )}
 
       {/* Featured Playlists from Spotify */}

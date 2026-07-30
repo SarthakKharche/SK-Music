@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { isAuthenticated } from '../middleware/auth.middleware';
 import { audioResolverService } from '../services/audio-resolver.service';
 import ytDlpExec from 'yt-dlp-exec';
-import { createReadStream, unlinkSync, existsSync, mkdirSync } from 'fs';
+import { createReadStream, unlinkSync, existsSync, mkdirSync, statSync } from 'fs';
 import { join } from 'path';
 import type { AudioResolveRequest } from '../types/audio.types';
 
@@ -125,7 +125,7 @@ router.get('/stream/:youtubeId', isAuthenticated, async (req, res) => {
  * GET /api/audio/download/:youtubeId
  * Stream audio through server for offline caching using yt-dlp
  */
-router.get('/download/:youtubeId', isAuthenticated, async (req, res) => {
+router.get('/download/:youtubeId', async (req, res) => {
   try {
     const { youtubeId } = req.params;
     
@@ -144,13 +144,14 @@ router.get('/download/:youtubeId', isAuthenticated, async (req, res) => {
       unlinkSync(outputFile);
     }
 
-    // Use yt-dlp-exec to download best audio (webm/opus format - no ffmpeg needed)
+    // Use yt-dlp-exec with Android player client to avoid 403 Forbidden errors
     await ytDlpExec(videoUrl, {
-      format: 'bestaudio',
+      format: 'bestaudio/18',
       output: outputFile,
       noPlaylist: true,
       noWarnings: true,
-    });
+      extractorArgs: 'youtube:player-client=android',
+    } as any);
 
     // Check if file was created
     if (!existsSync(outputFile)) {
@@ -160,8 +161,11 @@ router.get('/download/:youtubeId', isAuthenticated, async (req, res) => {
 
     console.log(`[DOWNLOAD] File ready, streaming: ${youtubeId}`);
 
+    const stats = statSync(outputFile);
+
     // Set response headers
     res.setHeader('Content-Type', 'audio/webm');
+    res.setHeader('Content-Length', stats.size);
     res.setHeader('X-Audio-Format', 'webm');
     res.setHeader('X-Audio-Quality', 'high');
 

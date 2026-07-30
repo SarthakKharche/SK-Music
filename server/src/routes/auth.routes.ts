@@ -9,6 +9,7 @@ import type { User } from '../types/user.types';
 
 const router = Router();
 const spotifyService = new SpotifyService();
+const clientUrl = process.env.CLIENT_URL || (process.env.CLIENT_URLS ? process.env.CLIENT_URLS.split(',')[0].trim() : '') || 'https://localhost:5173';
 
 /**
  * GET /api/auth/google
@@ -18,7 +19,9 @@ router.get(
   '/google',
   authRateLimiter,
   passport.authenticate('google', {
-    scope: ['profile', 'email'],
+    scope: ['profile', 'email', 'https://www.googleapis.com/auth/youtube'],
+    accessType: 'offline',
+    prompt: 'consent',
   })
 );
 
@@ -28,19 +31,16 @@ router.get(
  */
 router.get(
   '/google/callback',
-  passport.authenticate('google', { failureRedirect: '/login' }),
+  passport.authenticate('google', { failureRedirect: `${clientUrl}/login` }),
   (req, res) => {
     const user = req.user as User;
     
-    // Generate JWT token
     const token = jwt.sign(
       { uid: user.uid, email: user.email },
       process.env.JWT_SECRET!,
       { expiresIn: '30d' }
     );
 
-    // Redirect to client with token
-    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
     res.redirect(`${clientUrl}/auth/callback?token=${token}`);
   }
 );
@@ -55,6 +55,9 @@ router.get('/spotify', isAuthenticated, (req, res) => {
     'playlist-read-collaborative',
     'user-read-email',
     'user-read-private',
+    'user-top-read',
+    'user-read-recently-played',
+    'user-library-read',
   ];
 
   const user = req.user as User;
@@ -71,14 +74,14 @@ router.get('/spotify', isAuthenticated, (req, res) => {
 router.get('/spotify/callback', async (req, res) => {
   try {
     const { code, state } = req.query;
-    const clientUrl = process.env.CLIENT_URL || 'https://localhost:5173';
+    const client = process.env.CLIENT_URL || 'https://localhost:5173';
 
     if (!code || typeof code !== 'string') {
-      return res.redirect(`${clientUrl}/spotify/error?reason=missing_code`);
+      return res.redirect(`${client}/spotify/error?reason=missing_code`);
     }
 
     if (!state || typeof state !== 'string') {
-      return res.redirect(`${clientUrl}/spotify/error?reason=missing_state`);
+      return res.redirect(`${client}/spotify/error?reason=missing_state`);
     }
 
     // The state parameter contains the user's uid
@@ -87,11 +90,11 @@ router.get('/spotify/callback', async (req, res) => {
     // Exchange code for tokens
     await spotifyService.handleCallback(code, userId);
 
-    return res.redirect(`${clientUrl}/spotify/connected`);
+    return res.redirect(`${client}/spotify/connected`);
   } catch (error) {
     console.error('Spotify callback error:', error);
-    const clientUrl = process.env.CLIENT_URL || 'https://localhost:5173';
-    return res.redirect(`${clientUrl}/spotify/error?reason=callback_failed`);
+    const client = process.env.CLIENT_URL || 'https://localhost:5173';
+    return res.redirect(`${client}/spotify/error?reason=callback_failed`);
   }
 });
 

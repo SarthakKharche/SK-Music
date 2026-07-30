@@ -1,4 +1,3 @@
-import axios from 'axios';
 import ytdl from '@distube/ytdl-core';
 import type { 
   AudioResolveRequest, 
@@ -56,13 +55,20 @@ export class AudioResolverService {
         }];
       }
 
-      const searchQuery = `${request.artistName} ${request.trackName} official audio`;
-      
-      // Use rate-limited YouTube search
-      const videoId = await this.searchYouTubeWithRateLimit(searchQuery);
+      let videoId: string | null = null;
+      let searchQuery = '';
+
+      if (request.trackId && (request.trackId.length === 11 || request.trackId.startsWith('yt-'))) {
+        videoId = request.trackId.replace('yt-', '');
+        console.log(`Direct hit: Using trackId directly as YouTube videoId: ${videoId}`);
+      } else {
+        searchQuery = `${request.artistName} ${request.trackName} official audio`;
+        // Use rate-limited YouTube search
+        videoId = await this.searchYouTubeWithRateLimit(searchQuery);
+      }
       
       if (!videoId) {
-        console.log(`No YouTube results for: ${searchQuery}`);
+        console.log(`No YouTube results for: ${searchQuery || request.trackName}`);
         return [];
       }
 
@@ -134,42 +140,14 @@ export class AudioResolverService {
    */
   private async searchYouTube(query: string): Promise<string | null> {
     try {
-      const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
-      
-      const response = await axios.get(searchUrl, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept-Language': 'en-US,en;q=0.9',
-        },
-        timeout: 10000, // 10 second timeout
-      });
-
-      const html = response.data as string;
-      
-      // Check for rate limit message
-      if (html.includes('Too many requests') || html.includes('unusual traffic')) {
-        console.warn('YouTube rate limit detected, waiting...');
-        await new Promise(r => setTimeout(r, 5000)); // Wait 5 seconds
-        return null;
+      const { youtubeMusicService } = await import('./youtube-music.service');
+      const results = await youtubeMusicService.searchTracks(query);
+      if (results && results.length > 0) {
+        return results[0].id;
       }
-      
-      // Extract video ID from the search results page
-      // YouTube embeds video IDs in the page as "videoId":"XXXXXXXXXXX"
-      const videoIdMatch = html.match(/"videoId":"([a-zA-Z0-9_-]{11})"/);
-      
-      if (videoIdMatch && videoIdMatch[1]) {
-        return videoIdMatch[1];
-      }
-
-      // Fallback: try to find watch?v= pattern
-      const watchMatch = html.match(/\/watch\?v=([a-zA-Z0-9_-]{11})/);
-      if (watchMatch && watchMatch[1]) {
-        return watchMatch[1];
-      }
-
       return null;
     } catch (error) {
-      console.error('YouTube scrape error:', error);
+      console.error('YouTube search fallback error:', error);
       return null;
     }
   }

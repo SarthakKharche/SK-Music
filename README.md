@@ -165,6 +165,31 @@ npm run build
 npm start
 ```
 
+## 🌐 Production Deployment (example: Vercel + Render)
+
+1) Backend (Render/Railway/Fly)
+- Env: set `PORT=5000`, `CLIENT_URL=https://app.example.com`, `CLIENT_URLS=https://app.example.com`, `SESSION_SECRET`, `JWT_SECRET`, Google/Spotify/Firebase keys, `SPOTIFY_REDIRECT_URI=https://api.example.com/api/auth/spotify/callback`, `GOOGLE_REDIRECT_URI=https://api.example.com/api/auth/google/callback`.
+- Build: `npm install && npm run build` (in server/). Start: `npm run start`.
+- CORS: already reads CLIENT_URL/CLIENT_URLS. Ensure HTTPS. Trust proxy enabled for secure cookies.
+- Storage: if `temp_audio/` is needed, use a persistent disk or external object storage.
+
+2) Frontend (Vercel/Netlify)
+- Create `client/.env` with `VITE_API_URL=https://api.example.com/api`.
+- Build command: `npm run build`; output: `dist`.
+- Set production domain e.g. `https://app.example.com`.
+
+3) OAuth dashboards
+- Spotify redirect URI: `https://api.example.com/api/auth/spotify/callback`.
+- Google redirect URI: `https://api.example.com/api/auth/google/callback`.
+- Website/homepage: `https://app.example.com`.
+
+4) DNS & HTTPS
+- Point `app.example.com` → frontend host, `api.example.com` → backend host.
+- Ensure TLS; most hosts auto-issue certs.
+
+5) Secrets hygiene
+- Do NOT commit `.env`. Rotate any secrets that were ever committed. Update hosts after rotation.
+
 ## 📁 Project Structure
 
 ```

@@ -20,6 +20,7 @@ const OfflineContext = createContext<OfflineContextType | undefined>(undefined);
 export const OfflineProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [isOffline, setIsOffline] = useState(!isOnline());
   const [syncStatus, setSyncStatus] = useState<Map<string, OfflineSyncStatus>>(new Map());
+  const [trackNames, setTrackNames] = useState<Map<string, string>>(new Map());
 
   /**
    * Initialize offline context
@@ -75,6 +76,10 @@ export const OfflineProvider: React.FC<{ children: ReactNode }> = ({ children })
   const toggleOfflineTrack = async (track: Track): Promise<void> => {
     const newPreference = !track.isOfflinePreferred;
 
+    if (newPreference) {
+      setTrackNames((prev) => new Map(prev).set(track.id, track.name));
+    }
+
     // Update local state
     await indexedDB.updateTrackOfflinePreference(track.id, newPreference);
 
@@ -102,6 +107,12 @@ export const OfflineProvider: React.FC<{ children: ReactNode }> = ({ children })
    * Download entire playlist for offline use
    */
   const downloadPlaylist = async (_playlistId: string, tracks: Track[]): Promise<void> => {
+    setTrackNames((prev) => {
+      const next = new Map(prev);
+      tracks.forEach((t) => next.set(t.id, t.name));
+      return next;
+    });
+
     // Mark tracks as offline preferred
     await Promise.all(
       tracks.map((track) =>
@@ -150,7 +161,39 @@ export const OfflineProvider: React.FC<{ children: ReactNode }> = ({ children })
     clearCache,
   };
 
-  return <OfflineContext.Provider value={value}>{children}</OfflineContext.Provider>;
+  const activeDownloads = Array.from(syncStatus.values()).filter(
+    (status) => status.status === 'downloading'
+  );
+
+  return (
+    <OfflineContext.Provider value={value}>
+      {children}
+      {activeDownloads.length > 0 && (
+        <div className="fixed top-6 right-6 z-[9999] flex flex-col gap-3 max-w-sm w-full pointer-events-none">
+          {activeDownloads.map((download) => {
+            const trackName = trackNames.get(download.trackId) || 'Downloading Track';
+            return (
+              <div 
+                key={download.trackId}
+                className="p-4 rounded-xl bg-[#121212]/95 border border-white/10 shadow-[0_10px_30px_rgba(0,0,0,0.6)] backdrop-blur-md flex flex-col gap-2 pointer-events-auto transition-all"
+              >
+                <div className="flex justify-between items-center text-xs font-bold text-white">
+                  <span className="truncate pr-4 w-52">{trackName}</span>
+                  <span className="text-spotify-green font-mono">{Math.round(download.progress)}%</span>
+                </div>
+                <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-spotify-green transition-all duration-150 ease-out" 
+                    style={{ width: `${download.progress}%` }}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </OfflineContext.Provider>
+  );
 };
 
 /**

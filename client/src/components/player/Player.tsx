@@ -1,4 +1,6 @@
 import { usePlayer } from '../../contexts/PlayerContext';
+import { useOffline } from '../../contexts/OfflineContext';
+import { audioCacheManager } from '../../services/audioCacheManager';
 import { 
   FiPlay, 
   FiPause, 
@@ -11,7 +13,9 @@ import {
   FiVolumeX,
   FiHeart,
   FiMaximize2,
-  FiList
+  FiList,
+  FiDownload,
+  FiCheck
 } from 'react-icons/fi';
 import { formatDuration } from '../../utils/helpers';
 import { useState, useRef, useEffect } from 'react';
@@ -33,6 +37,42 @@ const Player: React.FC = () => {
     toggleRepeat,
     toggleShuffle,
   } = usePlayer();
+
+  const { toggleOfflineTrack, syncStatus } = useOffline();
+  const [isCached, setIsCached] = useState(false);
+
+  const checkCachedStatus = async () => {
+    if (!currentTrack) return;
+    const cached = await audioCacheManager.isTrackCached(currentTrack.id);
+    setIsCached(cached);
+  };
+
+  useEffect(() => {
+    if (currentTrack) {
+      checkCachedStatus();
+    }
+  }, [currentTrack]);
+
+  useEffect(() => {
+    if (currentTrack) {
+      const status = syncStatus.get(currentTrack.id);
+      if (status?.status === 'completed') {
+        setIsCached(true);
+      } else if (status?.status === 'failed') {
+        setIsCached(false);
+      }
+    }
+  }, [syncStatus, currentTrack]);
+
+  const handleToggleOffline = async () => {
+    if (!currentTrack) return;
+    const storedYtId = localStorage.getItem(`youtube_${currentTrack.id}`);
+    if (!storedYtId && currentTrack.id.startsWith('yt-')) {
+      localStorage.setItem(`youtube_${currentTrack.id}`, currentTrack.id.replace('yt-', ''));
+    }
+    await toggleOfflineTrack(currentTrack);
+    await checkCachedStatus();
+  };
 
   const [isDraggingProgress, setIsDraggingProgress] = useState(false);
   const [isDraggingVolume, setIsDraggingVolume] = useState(false);
@@ -234,6 +274,29 @@ const Player: React.FC = () => {
                   </span>
                 )}
               </button>
+              {(() => {
+                const status = currentTrack ? syncStatus.get(currentTrack.id) : null;
+                return (
+                  <button
+                    onClick={handleToggleOffline}
+                    className={`p-2 transition-colors ${
+                      isCached
+                        ? 'text-spotify-green hover:text-green-400'
+                        : 'text-[#b3b3b3] hover:text-white'
+                    }`}
+                    disabled={status?.status === 'downloading'}
+                    title={isCached ? 'Already downloaded (Click to remove)' : 'Download for offline'}
+                  >
+                    {status?.status === 'downloading' ? (
+                      <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-spotify-green"></div>
+                    ) : isCached ? (
+                      <FiCheck size={24} />
+                    ) : (
+                      <FiDownload size={24} />
+                    )}
+                  </button>
+                );
+              })()}
             </div>
 
             {/* Progress Bar - Large */}
@@ -333,6 +396,29 @@ const Player: React.FC = () => {
         >
           <FiHeart size={16} fill={isLiked ? '#1DB954' : 'none'} />
         </button>
+        {(() => {
+          const status = currentTrack ? syncStatus.get(currentTrack.id) : null;
+          return (
+            <button
+              onClick={handleToggleOffline}
+              className={`ml-3 transition-colors ${
+                isCached
+                  ? 'text-spotify-green hover:text-green-400'
+                  : 'text-[#b3b3b3] hover:text-white'
+              }`}
+              disabled={status?.status === 'downloading'}
+              title={isCached ? 'Already downloaded (Click to remove)' : 'Download for offline'}
+            >
+              {status?.status === 'downloading' ? (
+                <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-spotify-green"></div>
+              ) : isCached ? (
+                <FiCheck size={16} />
+              ) : (
+                <FiDownload size={16} />
+              )}
+            </button>
+          );
+        })()}
       </div>
 
       {/* Center: Player Controls */}

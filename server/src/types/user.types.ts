@@ -12,6 +12,9 @@ export interface User {
   spotifyAccessToken?: string;
   spotifyRefreshToken?: string;
   spotifyTokenExpiry?: string;
+  googleAccessToken?: string;
+  googleRefreshToken?: string;
+  googleTokenExpiry?: string;
   createdAt: string;
   updatedAt: string;
 }

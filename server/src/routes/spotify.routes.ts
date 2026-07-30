@@ -167,7 +167,7 @@ router.post('/disconnect', isAuthenticated, async (req, res) => {
  * GET /api/spotify/search
  * Search for tracks on Spotify
  */
-router.get('/search', isAuthenticated, hasSpotifyConnected, async (req, res) => {
+router.get('/search', isAuthenticated, async (req, res) => {
   try {
     const user = req.user as User;
     const { q, limit = '20', offset = '0' } = req.query;
@@ -176,38 +176,58 @@ router.get('/search', isAuthenticated, hasSpotifyConnected, async (req, res) => 
       return res.status(400).json({ error: 'Search query is required' });
     }
 
-    const result = await spotifyService.searchTracks(
-      user.uid,
-      q,
-      parseInt(limit as string, 10),
-      parseInt(offset as string, 10)
-    );
+    let tracks: any[] = [];
+    let total = 0;
+    let hasMore = false;
 
-    // Transform to our track format
-    const tracks = result.tracks.map((track) => ({
-      id: track.id,
-      name: track.name,
-      artists: track.artists.map((artist) => ({
-        id: artist.id,
-        name: artist.name,
-      })),
-      album: {
-        id: track.album.id,
-        name: track.album.name,
-        imageUrl: track.album.images[0]?.url || null,
-        releaseDate: track.album.release_date || null,
-      },
-      durationMs: track.duration_ms,
-      explicit: track.explicit,
-      isrc: track.external_ids?.isrc || null,
-      spotifyUrl: track.external_urls.spotify,
-      previewUrl: track.preview_url || null,
-    }));
+    if (user.spotifyConnected && user.spotifyAccessToken) {
+      try {
+        const result = await spotifyService.searchTracks(
+          user.uid,
+          q,
+          parseInt(limit as string, 10),
+          parseInt(offset as string, 10)
+        );
+
+        tracks = result.tracks.map((track) => ({
+          id: track.id,
+          name: track.name,
+          artists: track.artists.map((artist) => ({
+            id: artist.id,
+            name: artist.name,
+          })),
+          album: {
+            id: track.album.id,
+            name: track.album.name,
+            imageUrl: track.album.images[0]?.url || null,
+            releaseDate: track.album.release_date || null,
+          },
+          durationMs: track.duration_ms,
+          explicit: track.explicit,
+          isrc: track.external_ids?.isrc || null,
+          spotifyUrl: track.external_urls.spotify,
+          previewUrl: track.preview_url || null,
+        }));
+
+        total = result.total;
+        hasMore = result.next !== null;
+      } catch (spotifyError: any) {
+        console.warn('[Search] Spotify search failed, falling back to YouTube Music:', spotifyError.message);
+      }
+    }
+
+    // Fallback to YouTube Music Search if Spotify is not connected or failed
+    if (tracks.length === 0) {
+      const { youtubeMusicService } = await import('../services/youtube-music.service');
+      tracks = await youtubeMusicService.searchTracks(q);
+      total = tracks.length;
+      hasMore = false;
+    }
 
     return res.json({
       tracks,
-      total: result.total,
-      hasMore: result.next !== null,
+      total,
+      hasMore,
     });
   } catch (error) {
     console.error('Error searching tracks:', error);
@@ -219,7 +239,7 @@ router.get('/search', isAuthenticated, hasSpotifyConnected, async (req, res) => 
  * GET /api/spotify/search/playlists
  * Search for playlists on Spotify
  */
-router.get('/search/playlists', isAuthenticated, hasSpotifyConnected, async (req, res) => {
+router.get('/search/playlists', isAuthenticated, async (req, res) => {
   try {
     const user = req.user as User;
     const { q, limit = '10', offset = '0' } = req.query;
@@ -228,33 +248,46 @@ router.get('/search/playlists', isAuthenticated, hasSpotifyConnected, async (req
       return res.status(400).json({ error: 'Search query is required' });
     }
 
-    const result = await spotifyService.searchPlaylists(
-      user.uid,
-      q,
-      parseInt(limit as string, 10),
-      parseInt(offset as string, 10)
-    );
+    let playlists: any[] = [];
+    let total = 0;
+    let hasMore = false;
 
-    const playlists = result.playlists
-      .filter((playlist) => playlist && playlist.id)
-      .map((playlist) => ({
-        id: playlist.id,
-        name: playlist.name,
-        description: playlist.description,
-        imageUrl: playlist.images?.[0]?.url,
-        trackCount: playlist.tracks?.total || 0,
-        owner: {
-          id: playlist.owner?.id,
-          name: playlist.owner?.display_name,
-        },
-        spotifyUrl: playlist.external_urls?.spotify,
-        isSpotifyPlaylist: true,
-      }));
+    if (user.spotifyConnected && user.spotifyAccessToken) {
+      try {
+        const result = await spotifyService.searchPlaylists(
+          user.uid,
+          q,
+          parseInt(limit as string, 10),
+          parseInt(offset as string, 10)
+        );
+
+        playlists = result.playlists
+          .filter((playlist) => playlist && playlist.id)
+          .map((playlist) => ({
+            id: playlist.id,
+            name: playlist.name,
+            description: playlist.description,
+            imageUrl: playlist.images?.[0]?.url,
+            trackCount: playlist.tracks?.total || 0,
+            owner: {
+              id: playlist.owner?.id,
+              name: playlist.owner?.display_name,
+            },
+            spotifyUrl: playlist.external_urls?.spotify,
+            isSpotifyPlaylist: true,
+          }));
+
+        total = result.total;
+        hasMore = result.next !== null;
+      } catch (spotifyError: any) {
+        console.warn('[Search] Spotify playlist search failed:', spotifyError.message);
+      }
+    }
 
     return res.json({
       playlists,
-      total: result.total,
-      hasMore: result.next !== null,
+      total,
+      hasMore,
     });
   } catch (error) {
     console.error('Error searching playlists:', error);

@@ -135,9 +135,14 @@ export class SpotifyService {
         return tokenData.access_token;
       } catch (error: unknown) {
         // Token refresh failed - clear Spotify connection and require re-auth
-        const axiosError = error as { response?: { data?: { error?: string } } };
-        if (axiosError.response?.data?.error === 'invalid_grant') {
-          console.log('Spotify refresh token is invalid. Clearing Spotify connection for user:', userId);
+        const axiosError = error as { response?: { status?: number; data?: { error?: string } } };
+        const isAuthError = axiosError.response && (axiosError.response.status === 400 || axiosError.response.status === 401);
+        
+        if (isAuthError) {
+          console.log('Spotify refresh token or credentials invalid. Clearing Spotify connection for user:', userId);
+          if (axiosError.response?.data?.error === 'invalid_client') {
+            console.error('CRITICAL: Spotify client credentials (SPOTIFY_CLIENT_ID / SPOTIFY_CLIENT_SECRET) in .env are invalid or unauthorized.');
+          }
           await db.collection('users').doc(userId).update({
             spotifyConnected: false,
             spotifyAccessToken: null,
@@ -532,5 +537,68 @@ export class SpotifyService {
     );
 
     return response.data;
+  }
+
+  // ─── User listening data endpoints (for Made For You seeding) ─────────
+
+  /**
+   * Get user's top tracks from Spotify.
+   * @param timeRange 'short_term' (~4 weeks), 'medium_term' (~6 months), 'long_term' (all time)
+   */
+  async getTopTracks(
+    userId: string,
+    timeRange: 'short_term' | 'medium_term' | 'long_term' = 'medium_term',
+    limit: number = 50,
+  ): Promise<SpotifyTrack[]> {
+    const accessToken = await this.getUserAccessToken(userId);
+    const params = new URLSearchParams({
+      time_range: timeRange,
+      limit: Math.min(limit, 50).toString(),
+    });
+
+    const response = await axios.get<{ items: SpotifyTrack[] }>(
+      `${this.spotifyApiUrl}/me/top/tracks?${params.toString()}`,
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+    );
+
+    return response.data.items;
+  }
+
+  /**
+   * Get user's recently played tracks from Spotify.
+   */
+  async getRecentlyPlayed(userId: string, limit: number = 50): Promise<SpotifyTrack[]> {
+    const accessToken = await this.getUserAccessToken(userId);
+    const params = new URLSearchParams({
+      limit: Math.min(limit, 50).toString(),
+    });
+
+    const response = await axios.get<{
+      items: Array<{ track: SpotifyTrack; played_at: string }>;
+    }>(
+      `${this.spotifyApiUrl}/me/player/recently-played?${params.toString()}`,
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+    );
+
+    return response.data.items.map((item) => item.track).filter((t) => t && t.id);
+  }
+
+  /**
+   * Get user's saved/liked tracks from Spotify.
+   */
+  async getSavedTracks(userId: string, limit: number = 50): Promise<SpotifyTrack[]> {
+    const accessToken = await this.getUserAccessToken(userId);
+    const params = new URLSearchParams({
+      limit: Math.min(limit, 50).toString(),
+    });
+
+    const response = await axios.get<{
+      items: Array<{ track: SpotifyTrack; added_at: string }>;
+    }>(
+      `${this.spotifyApiUrl}/me/tracks?${params.toString()}`,
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+    );
+
+    return response.data.items.map((item) => item.track).filter((t) => t && t.id);
   }
 }

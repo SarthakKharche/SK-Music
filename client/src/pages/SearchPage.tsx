@@ -1,6 +1,8 @@
 import { useState, useCallback, useEffect } from 'react';
-import { FiSearch, FiPlay, FiClock } from 'react-icons/fi';
+import { FiSearch, FiPlay, FiClock, FiDownload, FiCheck } from 'react-icons/fi';
 import { usePlayer } from '../contexts/PlayerContext';
+import { useOffline } from '../contexts/OfflineContext';
+import { audioCacheManager } from '../services/audioCacheManager';
 import api from '../utils/api';
 import { formatDuration } from '../utils/helpers';
 import type { Track } from '../types';
@@ -50,6 +52,8 @@ const browseCategories: BrowseCategory[] = [
 
 const SearchPage: React.FC = () => {
   const { playTrack, currentTrack } = usePlayer();
+  const { toggleOfflineTrack, syncStatus } = useOffline();
+  const [cachedTracks, setCachedTracks] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchTrack[]>([]);
   const [loading, setLoading] = useState(false);
@@ -60,6 +64,59 @@ const SearchPage: React.FC = () => {
   const [topResult, setTopResult] = useState<SearchTrack | null>(null);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+
+  const mapSearchTrackToTrack = (track: SearchTrack): Track => {
+    return {
+      id: track.id,
+      playlistId: 'search',
+      userId: '',
+      name: track.name,
+      artists: track.artists,
+      album: {
+        id: track.album.id,
+        name: track.album.name,
+        imageUrl: track.album.imageUrl || '',
+      },
+      durationMs: track.durationMs,
+      explicit: track.explicit,
+      spotifyUrl: track.spotifyUrl,
+      isOfflinePreferred: false,
+      addedAt: new Date().toISOString(),
+    };
+  };
+
+  const updateCachedStatus = async (trackList: Track[]) => {
+    const cached = new Set<string>();
+    for (const track of trackList) {
+      const isCached = await audioCacheManager.isTrackCached(track.id);
+      if (isCached) {
+        cached.add(track.id);
+      }
+    }
+    setCachedTracks(cached);
+  };
+
+  const handleToggleOffline = async (e: React.MouseEvent, searchTrack: SearchTrack) => {
+    e.stopPropagation();
+    const track = mapSearchTrackToTrack(searchTrack);
+    await toggleOfflineTrack(track);
+    const isCached = await audioCacheManager.isTrackCached(track.id);
+    setCachedTracks(prev => {
+      const next = new Set(prev);
+      if (isCached) {
+        next.add(track.id);
+      } else {
+        next.delete(track.id);
+      }
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    if (results.length > 0) {
+      updateCachedStatus(results.map(mapSearchTrackToTrack));
+    }
+  }, [results]);
 
   // Load recent searches from localStorage
   useEffect(() => {
@@ -331,10 +388,37 @@ const SearchPage: React.FC = () => {
                         </p>
                       </div>
 
-                      {/* Duration */}
-                      <span className="text-spotify-lightgray text-sm">
-                        {formatDuration(track.durationMs)}
-                      </span>
+                      {/* Duration & Download */}
+                      <div className="flex items-center gap-2">
+                        <span className="text-spotify-lightgray text-sm mr-2">
+                          {formatDuration(track.durationMs)}
+                        </span>
+                        
+                        {(() => {
+                          const isCached = cachedTracks.has(track.id);
+                          const status = syncStatus.get(track.id);
+                          return (
+                            <button
+                              onClick={(e) => handleToggleOffline(e, track)}
+                              className={`p-2 rounded-full transition-colors ${
+                                isCached
+                                  ? 'text-spotify-green hover:text-green-400'
+                                  : 'text-spotify-lightgray hover:text-white'
+                              }`}
+                              disabled={status?.status === 'downloading'}
+                              title={isCached ? 'Remove from offline' : 'Download for offline'}
+                            >
+                              {status?.status === 'downloading' ? (
+                                <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-spotify-green"></div>
+                              ) : isCached ? (
+                                <FiCheck size={16} />
+                              ) : (
+                                <FiDownload size={16} />
+                              )}
+                            </button>
+                          );
+                        })()}
+                      </div>
                     </div>
                   );
                 })}
@@ -348,11 +432,12 @@ const SearchPage: React.FC = () => {
               <h2 className="text-2xl font-bold text-white mb-4">All results</h2>
               
               {/* Table Header */}
-              <div className="grid grid-cols-[48px_1fr_1fr_80px] gap-4 px-4 py-2 text-spotify-lightgray text-sm border-b border-spotify-lightgray/20 sticky top-20 bg-spotify-black">
+              <div className="grid grid-cols-[48px_1fr_1fr_80px_48px] gap-4 px-4 py-2 text-spotify-lightgray text-sm border-b border-spotify-lightgray/20 sticky top-20 bg-spotify-black">
                 <div>#</div>
                 <div>Title</div>
                 <div>Album</div>
                 <div className="text-right"><FiClock /></div>
+                <div></div>
               </div>
 
               {/* Tracks */}
@@ -364,7 +449,7 @@ const SearchPage: React.FC = () => {
                     <div
                       key={`${track.id}-full-${index}`}
                       onClick={() => handlePlayTrack(track)}
-                      className={`grid grid-cols-[48px_1fr_1fr_80px] gap-4 px-4 py-2 rounded-md group cursor-pointer transition-colors hover:bg-spotify-gray`}
+                      className={`grid grid-cols-[48px_1fr_1fr_80px_48px] gap-4 px-4 py-2 rounded-md group cursor-pointer transition-colors hover:bg-spotify-gray`}
                     >
                       {/* Index / Play Button */}
                       <div className="flex items-center justify-center">
@@ -400,6 +485,34 @@ const SearchPage: React.FC = () => {
                       {/* Duration */}
                       <div className="flex items-center justify-end text-spotify-lightgray text-sm">
                         {formatDuration(track.durationMs)}
+                      </div>
+
+                      {/* Download Button */}
+                      <div className="flex items-center justify-center">
+                        {(() => {
+                          const isCached = cachedTracks.has(track.id);
+                          const status = syncStatus.get(track.id);
+                          return (
+                            <button
+                              onClick={(e) => handleToggleOffline(e, track)}
+                              className={`p-2 rounded-full transition-colors ${
+                                isCached
+                                  ? 'text-spotify-green hover:text-green-400'
+                                  : 'text-spotify-lightgray hover:text-white'
+                              }`}
+                              disabled={status?.status === 'downloading'}
+                              title={isCached ? 'Remove from offline' : 'Download for offline'}
+                            >
+                              {status?.status === 'downloading' ? (
+                                <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-spotify-green"></div>
+                              ) : isCached ? (
+                                <FiCheck size={16} />
+                              ) : (
+                                <FiDownload size={16} />
+                              )}
+                            </button>
+                          );
+                        })()}
                       </div>
                     </div>
                   );
