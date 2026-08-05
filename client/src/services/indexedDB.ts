@@ -173,6 +173,14 @@ class IndexedDBManager {
   }
 
   /**
+   * Delete a track by ID
+   */
+  async deleteTrack(trackId: string): Promise<void> {
+    const db = this.getDB();
+    await db.delete('tracks', trackId);
+  }
+
+  /**
    * Update track offline preference
    */
   async updateTrackOfflinePreference(

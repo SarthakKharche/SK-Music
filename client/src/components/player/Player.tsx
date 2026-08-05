@@ -13,12 +13,14 @@ import {
   FiVolumeX,
   FiHeart,
   FiMaximize2,
-  FiList,
   FiDownload,
   FiCheck
 } from 'react-icons/fi';
 import { formatDuration } from '../../utils/helpers';
 import { useState, useRef, useEffect } from 'react';
+import { indexedDB } from '../../services/indexedDB';
+import api from '../../utils/api';
+import type { Track } from '../../types';
 
 const Player: React.FC = () => {
   const {
@@ -34,6 +36,7 @@ const Player: React.FC = () => {
     previous,
     seek,
     setVolume: setPlayerVolume,
+    toggleMute,
     toggleRepeat,
     toggleShuffle,
   } = usePlayer();
@@ -56,7 +59,7 @@ const Player: React.FC = () => {
   useEffect(() => {
     if (currentTrack) {
       const status = syncStatus.get(currentTrack.id);
-      if (status?.status === 'completed') {
+      if (status?.status === 'cached') {
         setIsCached(true);
       } else if (status?.status === 'failed') {
         setIsCached(false);
@@ -80,7 +83,9 @@ const Player: React.FC = () => {
   const [isLiked, setIsLiked] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const progressRef = useRef<HTMLDivElement>(null);
+  const fullscreenProgressRef = useRef<HTMLDivElement>(null);
   const volumeRef = useRef<HTMLDivElement>(null);
+  const fullscreenVolumeRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -89,32 +94,83 @@ const Player: React.FC = () => {
     }
   }, [currentTime, isDraggingProgress]);
 
+  const getActiveProgressRef = () => {
+    return isFullscreen ? fullscreenProgressRef.current : progressRef.current;
+  };
+
+  const getActiveVolumeRef = () => {
+    return isFullscreen ? fullscreenVolumeRef.current : volumeRef.current;
+  };
+
+  const calculateNewTime = (clientX: number): number | undefined => {
+    const ref = getActiveProgressRef();
+    if (!ref || !duration) return undefined;
+    const rect = ref.getBoundingClientRect();
+    const percent = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    return percent * duration;
+  };
+
+  const calculateNewVolume = (clientX: number): number | undefined => {
+    const ref = getActiveVolumeRef();
+    if (!ref) return undefined;
+    const rect = ref.getBoundingClientRect();
+    return Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+  };
+
+  const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const newTime = calculateNewTime(e.clientX);
+    if (newTime !== undefined) {
+      setLocalProgress(newTime);
+      seek(newTime);
+    }
+  };
+
+  const handleProgressMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    setIsDraggingProgress(true);
+    const newTime = calculateNewTime(e.clientX);
+    if (newTime !== undefined) {
+      setLocalProgress(newTime);
+      seek(newTime);
+    }
+  };
+
+  const handleVolumeClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const newVol = calculateNewVolume(e.clientX);
+    if (newVol !== undefined) {
+      setPlayerVolume(newVol);
+    }
+  };
+
+  const handleVolumeMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    setIsDraggingVolume(true);
+    const newVol = calculateNewVolume(e.clientX);
+    if (newVol !== undefined) {
+      setPlayerVolume(newVol);
+    }
+  };
+
   // Mouse drag handlers for progress and volume sliders
   useEffect(() => {
-    const updateProgress = (e: MouseEvent): number | undefined => {
-      if (!progressRef.current) return undefined;
-      const rect = progressRef.current.getBoundingClientRect();
-      const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-      const newTime = percent * duration;
-      setLocalProgress(newTime);
-      return newTime;
-    };
-
     const handleMouseMove = (e: MouseEvent) => {
       if (isDraggingProgress) {
-        updateProgress(e);
+        const newTime = calculateNewTime(e.clientX);
+        if (newTime !== undefined) {
+          setLocalProgress(newTime);
+        }
       }
-      if (isDraggingVolume && volumeRef.current) {
-        const rect = volumeRef.current.getBoundingClientRect();
-        const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-        setPlayerVolume(percent);
+      if (isDraggingVolume) {
+        const newVol = calculateNewVolume(e.clientX);
+        if (newVol !== undefined) {
+          setPlayerVolume(newVol);
+        }
       }
     };
 
     const handleMouseUp = (e: MouseEvent) => {
       if (isDraggingProgress) {
-        const newTime = updateProgress(e);
+        const newTime = calculateNewTime(e.clientX);
         if (newTime !== undefined) {
+          setLocalProgress(newTime);
           seek(newTime);
         }
         setIsDraggingProgress(false);
@@ -133,7 +189,7 @@ const Player: React.FC = () => {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isDraggingProgress, isDraggingVolume, duration, seek, setPlayerVolume]);
+  }, [isDraggingProgress, isDraggingVolume, duration, isFullscreen, seek, setPlayerVolume]);
 
   // Fullscreen handler
   const toggleFullscreen = async () => {
@@ -152,15 +208,194 @@ const Player: React.FC = () => {
     }
   };
 
-  // Listen for fullscreen changes
+  const getHighResImageUrl = (url?: string | null) => {
+    if (!url) return '';
+    let highRes = url;
+    if (highRes.includes('=w120-h120') || highRes.includes('=w544-h544') || highRes.includes('=w120-h120-l90-rj') || highRes.includes('=w120-h120-p-l90-rj')) {
+      highRes = highRes.replace(/=w\d+-h\d+[^\s]*/, '=w800-h800-l90-rj');
+    } else if (highRes.includes('=s120') || highRes.includes('=s300')) {
+      highRes = highRes.replace(/=s\d+/, '=s800');
+    }
+    if (highRes.includes('/default.jpg')) {
+      highRes = highRes.replace('/default.jpg', '/maxresdefault.jpg');
+    } else if (highRes.includes('/hqdefault.jpg')) {
+      highRes = highRes.replace('/hqdefault.jpg', '/maxresdefault.jpg');
+    } else if (highRes.includes('/mqdefault.jpg')) {
+      highRes = highRes.replace('/mqdefault.jpg', '/maxresdefault.jpg');
+    }
+    return highRes;
+  };
+
+  const checkLikedStatus = async () => {
+    if (!currentTrack) return;
+    try {
+      const tracks = await indexedDB.getTracksByPlaylist('custom_liked_songs');
+      const found = tracks.some(t => t.id === currentTrack.id);
+      setIsLiked(found);
+    } catch {
+      setIsLiked(false);
+    }
+  };
+
+  useEffect(() => {
+    if (currentTrack) {
+      checkLikedStatus();
+    }
+  }, [currentTrack]);
+
+  const handleToggleLike = async () => {
+    if (!currentTrack) return;
+    try {
+      const likedTrack: Track = {
+        ...currentTrack,
+        playlistId: 'custom_liked_songs'
+      };
+
+      if (!isLiked) {
+        await indexedDB.saveTracks([likedTrack]);
+        const existingPlaylist = await indexedDB.getPlaylist('custom_liked_songs');
+        if (!existingPlaylist) {
+          await indexedDB.savePlaylists([{
+            id: 'custom_liked_songs',
+            userId: 'local',
+            name: 'Liked Songs',
+            description: 'Your favorite saved tracks',
+            imageUrl: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=500&auto=format&fit=crop&q=60',
+            trackCount: 1,
+            isPublic: false,
+            owner: { id: 'local', name: 'You' },
+            spotifyUrl: '',
+            lastSyncedAt: new Date().toISOString(),
+            createdAt: new Date().toISOString()
+          }]);
+        }
+        if (navigator.onLine) {
+          try {
+            await api.post('/user/playlists/custom_liked_songs/tracks', { track: likedTrack });
+          } catch { /* ignore */ }
+        }
+        setIsLiked(true);
+      } else {
+        await indexedDB.deleteTrack(currentTrack.id);
+        if (navigator.onLine) {
+          try {
+            await api.delete(`/user/playlists/custom_liked_songs/tracks/${currentTrack.id}`);
+          } catch { /* ignore */ }
+        }
+        setIsLiked(false);
+      }
+      window.dispatchEvent(new Event('playlists-updated'));
+    } catch (e) {
+      console.error('Error toggling like:', e);
+    }
+  };
+
+  // Listen for fullscreen changes & keyboard shortcut 'F'
   useEffect(() => {
     const handleFullscreenChange = () => {
       setIsFullscreen(!!document.fullscreenElement);
     };
     
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Do not intercept browser modifier shortcuts (e.g. Ctrl+R, Cmd+R, Alt+F4)
+      if (e.ctrlKey || e.metaKey || e.altKey) {
+        return;
+      }
+
+      const target = e.target as HTMLElement;
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+
+      // Spacebar: Play / Pause
+      if (e.code === 'Space' || e.key === ' ') {
+        e.preventDefault();
+        togglePlayPause();
+      }
+      // ArrowLeft: Seek -5s (Shift+ArrowLeft: Previous track)
+      else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        if (e.shiftKey) {
+          previous();
+        } else {
+          const newTime = Math.max(0, localProgress - 5);
+          setLocalProgress(newTime);
+          seek(newTime);
+        }
+      }
+      // ArrowRight: Seek +5s (Shift+ArrowRight: Next track)
+      else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        if (e.shiftKey) {
+          next();
+        } else {
+          const newTime = Math.min(duration, localProgress + 5);
+          setLocalProgress(newTime);
+          seek(newTime);
+        }
+      }
+      // ArrowUp: Volume +5%
+      else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setPlayerVolume(Math.min(1, Math.round((volume + 0.05) * 100) / 100));
+      }
+      // ArrowDown: Volume -5%
+      else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setPlayerVolume(Math.max(0, Math.round((volume - 0.05) * 100) / 100));
+      }
+      // 'M' or 'm': Toggle Mute
+      else if (e.key === 'm' || e.key === 'M') {
+        e.preventDefault();
+        toggleMute();
+      }
+      // 'F' or 'f': Toggle Fullscreen
+      else if (e.key === 'f' || e.key === 'F') {
+        e.preventDefault();
+        toggleFullscreen();
+      }
+      // 'L' or 'l': Toggle Like
+      else if (e.key === 'l' || e.key === 'L') {
+        e.preventDefault();
+        handleToggleLike();
+      }
+      // 'S' or 's': Toggle Shuffle
+      else if (e.key === 's' || e.key === 'S') {
+        e.preventDefault();
+        toggleShuffle();
+      }
+      // 'R' or 'r': Toggle Repeat
+      else if (e.key === 'r' || e.key === 'R') {
+        e.preventDefault();
+        toggleRepeat();
+      }
+    };
+
     document.addEventListener('fullscreenchange', handleFullscreenChange);
-    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
-  }, []);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [
+    toggleFullscreen,
+    togglePlayPause,
+    previous,
+    next,
+    seek,
+    localProgress,
+    duration,
+    volume,
+    setPlayerVolume,
+    handleToggleLike,
+    toggleShuffle,
+    toggleRepeat,
+  ]);
 
   if (!currentTrack) {
     return (
@@ -179,17 +414,6 @@ const Player: React.FC = () => {
   const progress = duration > 0 ? (localProgress / duration) * 100 : 0;
   const volumePercent = volume * 100;
 
-  const handleProgressMouseDown = (e: React.MouseEvent) => {
-    setIsDraggingProgress(true);
-    // Calculate and update progress immediately
-    if (progressRef.current) {
-      const rect = progressRef.current.getBoundingClientRect();
-      const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-      const newTime = percent * duration;
-      setLocalProgress(newTime);
-    }
-  };
-
   const VolumeIcon = volume === 0 ? FiVolumeX : volume < 0.5 ? FiVolume1 : FiVolume2;
 
   return (
@@ -197,173 +421,170 @@ const Player: React.FC = () => {
       ref={playerRef}
       className={`${
         isFullscreen 
-          ? 'fixed inset-0 z-50 bg-gradient-to-b from-spotify-dark to-black flex flex-col items-center justify-center p-8' 
+          ? 'fixed inset-0 z-50 bg-black flex flex-col items-center justify-center p-8 overflow-y-auto overflow-x-hidden' 
           : 'h-[90px] bg-[#181818] border-t border-[#282828] px-4 grid grid-cols-3 items-center'
       }`}
     >
       {isFullscreen ? (
-        // Fullscreen Layout
-        <div className="w-full max-w-4xl flex flex-col items-center gap-8">
-          {/* Album Art - Large */}
-          {albumImageUrl && (
+        // Fullscreen Layout with Fixed Blurred Card Background
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center p-8 overflow-y-auto overflow-x-hidden">
+          {/* Fixed Glowing Background Artwork */}
+          {albumImageUrl ? (
             <img
-              src={albumImageUrl}
-              alt={albumName}
-              className="w-80 h-80 rounded-lg shadow-2xl"
+              src={getHighResImageUrl(albumImageUrl)}
+              alt=""
+              className="fixed inset-0 w-full h-full object-cover filter blur-[100px] scale-125 opacity-55 saturate-150 brightness-90 transition-all duration-700 pointer-events-none select-none"
             />
+          ) : (
+            <div className="fixed inset-0 bg-gradient-to-b from-indigo-900/40 via-spotify-dark to-black pointer-events-none" />
           )}
-          
-          {/* Track Info - Large */}
-          <div className="text-center">
-            <h1 className="text-4xl font-bold text-white mb-2">{trackName}</h1>
-            <p className="text-xl text-spotify-lightgray">{artistNames}</p>
-          </div>
 
-          {/* Controls - Large */}
-          <div className="w-full">
-            <div className="flex items-center justify-center gap-6 mb-6">
-              <button 
-                onClick={toggleShuffle}
-                className={`p-2 transition-colors ${
-                  shuffle ? 'text-spotify-green' : 'text-[#b3b3b3] hover:text-white'
-                }`}
-                title="Shuffle"
-              >
-                <FiShuffle size={24} />
-              </button>
+          {/* Fixed Dark Overlay */}
+          <div className="fixed inset-0 bg-black/55 backdrop-blur-2xl pointer-events-none" />
 
-              <button 
-                onClick={previous}
-                className="text-white hover:scale-110 transition-transform p-2"
-                title="Previous"
-              >
-                <FiSkipBack size={32} />
-              </button>
+          <div className="relative z-10 w-full max-w-4xl flex flex-col items-center gap-8 my-auto">
+            {/* Album Art - Large */}
+            {albumImageUrl && (
+              <img
+                src={getHighResImageUrl(albumImageUrl)}
+                alt={albumName}
+                className="w-80 h-80 rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.8)] object-cover border border-white/10"
+              />
+            )}
+            
+            {/* Track Info - Large */}
+            <div className="text-center flex flex-col items-center">
+              <div className="flex items-center gap-4">
+                <h1 className="text-4xl font-bold text-white drop-shadow-md">{trackName}</h1>
+                <button 
+                  onClick={handleToggleLike}
+                  className={`transition-transform hover:scale-110 cursor-pointer ${isLiked ? 'text-spotify-green' : 'text-white/40 hover:text-white'}`}
+                  title={isLiked ? 'Remove from Liked Songs' : 'Save to Liked Songs'}
+                >
+                  <FiHeart size={28} fill={isLiked ? '#1DB954' : 'none'} />
+                </button>
+              </div>
+              <p className="text-xl text-spotify-lightgray mt-2 font-medium">{artistNames}</p>
+            </div>
 
-              <button
-                onClick={togglePlayPause}
-                className="w-16 h-16 bg-white rounded-full flex items-center justify-center hover:scale-105 transition-transform shadow-xl"
-                title={isPlaying ? 'Pause' : 'Play'}
-              >
-                {isPlaying ? (
-                  <FiPause className="text-black" size={32} />
-                ) : (
-                  <FiPlay className="text-black ml-1" size={32} />
-                )}
-              </button>
+            {/* Controls - Large */}
+            <div className="w-full">
+              <div className="flex items-center justify-center gap-6 mb-6">
+                <button 
+                  onClick={toggleShuffle}
+                  className={`p-2 transition-colors ${
+                    shuffle ? 'text-spotify-green' : 'text-[#b3b3b3] hover:text-white'
+                  }`}
+                  title="Shuffle"
+                >
+                  <FiShuffle size={24} />
+                </button>
 
-              <button 
-                onClick={next}
-                className="text-white hover:scale-110 transition-transform p-2"
-                title="Next"
-              >
-                <FiSkipForward size={32} />
-              </button>
+                <button 
+                  onClick={previous}
+                  className="text-white hover:scale-110 transition-transform p-2"
+                  title="Previous"
+                >
+                  <FiSkipBack size={32} />
+                </button>
 
-              <button
-                onClick={toggleRepeat}
-                className={`p-2 relative transition-colors ${
-                  repeat !== 'off' ? 'text-spotify-green' : 'text-[#b3b3b3] hover:text-white'
-                }`}
-                title={`Repeat: ${repeat}`}
-              >
-                <FiRepeat size={24} />
-                {repeat === 'one' && (
-                  <span className="absolute -top-1 -right-1 text-xs font-bold bg-spotify-green text-black rounded-full w-5 h-5 flex items-center justify-center">
-                    1
-                  </span>
-                )}
-              </button>
-              {(() => {
-                const status = currentTrack ? syncStatus.get(currentTrack.id) : null;
-                return (
-                  <button
-                    onClick={handleToggleOffline}
-                    className={`p-2 transition-colors ${
-                      isCached
-                        ? 'text-spotify-green hover:text-green-400'
-                        : 'text-[#b3b3b3] hover:text-white'
-                    }`}
-                    disabled={status?.status === 'downloading'}
-                    title={isCached ? 'Already downloaded (Click to remove)' : 'Download for offline'}
+                <button
+                  onClick={togglePlayPause}
+                  className="w-16 h-16 bg-white rounded-full flex items-center justify-center hover:scale-105 transition-transform shadow-2xl"
+                  title={isPlaying ? 'Pause' : 'Play'}
+                >
+                  {isPlaying ? (
+                    <FiPause className="text-black" size={32} />
+                  ) : (
+                    <FiPlay className="text-black ml-1" size={32} />
+                  )}
+                </button>
+
+                <button 
+                  onClick={next}
+                  className="text-white hover:scale-110 transition-transform p-2"
+                  title="Next"
+                >
+                  <FiSkipForward size={32} />
+                </button>
+
+                <button 
+                  onClick={toggleRepeat}
+                  className={`p-2 relative transition-colors ${
+                    repeat !== 'off' ? 'text-spotify-green' : 'text-[#b3b3b3] hover:text-white'
+                  }`}
+                  title={`Repeat: ${repeat}`}
+                >
+                  <FiRepeat size={24} />
+                  {repeat === 'one' && (
+                    <span className="absolute top-0 right-0 text-[10px] font-bold bg-spotify-green text-black rounded-full w-4 h-4 flex items-center justify-center">
+                      1
+                    </span>
+                  )}
+                </button>
+              </div>
+
+              {/* Progress Bar - Large */}
+              <div className="flex items-center gap-4 w-full mb-6">
+                <span className="text-sm text-spotify-lightgray w-12 text-right font-mono select-none">
+                  {formatDuration(localProgress * 1000)}
+                </span>
+                <div 
+                  ref={fullscreenProgressRef}
+                  className="flex-1 h-3 bg-white/20 rounded-full cursor-pointer group relative py-1"
+                  onClick={handleProgressClick}
+                  onMouseDown={handleProgressMouseDown}
+                >
+                  <div 
+                    className="h-full bg-white group-hover:bg-spotify-green rounded-full relative transition-colors"
+                    style={{ width: `${progress}%` }}
                   >
-                    {status?.status === 'downloading' ? (
-                      <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-spotify-green"></div>
-                    ) : isCached ? (
-                      <FiCheck size={24} />
-                    ) : (
-                      <FiDownload size={24} />
-                    )}
-                  </button>
-                );
-              })()}
-            </div>
+                    <div 
+                      className={`absolute right-0 top-1/2 -translate-y-1/2 w-5 h-5 bg-white rounded-full shadow-lg ${
+                        isDraggingProgress ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                      } transition-opacity`}
+                    />
+                  </div>
+                </div>
+                <span className="text-sm text-spotify-lightgray w-12 font-mono select-none">
+                  {formatDuration(duration * 1000)}
+                </span>
+              </div>
 
-            {/* Progress Bar - Large */}
-            <div className="flex items-center gap-4">
-              <span className="text-sm text-[#a7a7a7] w-14 text-right font-mono">
-                {formatDuration(localProgress * 1000)}
-              </span>
-              <div 
-                ref={progressRef}
-                className="flex-1 h-2 bg-[#4d4d4d] rounded-full cursor-pointer group relative"
-                onMouseDown={handleProgressMouseDown}
-              >
+              {/* Volume & Extras - Large */}
+              <div className="flex items-center justify-center gap-4">
+                <button 
+                  onClick={toggleMute}
+                  className="text-[#b3b3b3] hover:text-white transition-colors p-2"
+                >
+                  <VolumeIcon size={20} />
+                </button>
                 <div 
-                  className="h-full bg-spotify-green rounded-full relative transition-colors"
-                  style={{ width: `${progress}%` }}
+                  ref={fullscreenVolumeRef}
+                  className="w-32 h-3 bg-white/20 rounded-full cursor-pointer group relative py-1"
+                  onClick={handleVolumeClick}
+                  onMouseDown={handleVolumeMouseDown}
                 >
                   <div 
-                    className={`absolute right-0 top-1/2 -translate-y-1/2 w-4 h-4 bg-white rounded-full shadow-md ${
-                      isDraggingProgress ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                    } transition-opacity`}
-                  />
+                    className="h-full bg-white group-hover:bg-spotify-green rounded-full relative transition-colors"
+                    style={{ width: `${volumePercent}%` }}
+                  >
+                    <div 
+                      className={`absolute right-0 top-1/2 -translate-y-1/2 w-4 h-4 bg-white rounded-full shadow-md ${
+                        isDraggingVolume ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                      } transition-opacity`}
+                    />
+                  </div>
                 </div>
-              </div>
-              <span className="text-sm text-[#a7a7a7] w-14 font-mono">
-                {formatDuration(duration * 1000)}
-              </span>
-            </div>
-
-            {/* Volume & Exit Fullscreen */}
-            <div className="flex items-center justify-center gap-4 mt-6">
-              <button 
-                onClick={() => setPlayerVolume(volume === 0 ? 0.5 : 0)}
-                className="text-[#b3b3b3] hover:text-white transition-colors p-2"
-              >
-                <VolumeIcon size={20} />
-              </button>
-              <div 
-                ref={volumeRef}
-                className="w-32 h-2 bg-[#4d4d4d] rounded-full cursor-pointer group relative"
-                onMouseDown={(e) => {
-                  setIsDraggingVolume(true);
-                  const rect = volumeRef.current?.getBoundingClientRect();
-                  if (rect) {
-                    const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-                    setPlayerVolume(percent);
-                  }
-                }}
-              >
-                <div 
-                  className="h-full bg-white group-hover:bg-spotify-green rounded-full relative transition-colors"
-                  style={{ width: `${volumePercent}%` }}
+                
+                <button 
+                  onClick={toggleFullscreen}
+                  className="text-spotify-green hover:text-white transition-colors p-2 ml-4"
+                  title="Exit Fullscreen (ESC)"
                 >
-                  <div 
-                    className={`absolute right-0 top-1/2 -translate-y-1/2 w-4 h-4 bg-white rounded-full shadow-md ${
-                      isDraggingVolume ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                    } transition-opacity`}
-                  />
-                </div>
+                  <FiMaximize2 size={20} />
+                </button>
               </div>
-              
-              <button 
-                onClick={toggleFullscreen}
-                className="text-spotify-green hover:text-white transition-colors p-2 ml-4"
-                title="Exit Fullscreen (ESC)"
-              >
-                <FiMaximize2 size={20} />
-              </button>
             </div>
           </div>
         </div>
@@ -391,8 +612,9 @@ const Player: React.FC = () => {
           </span>
         </div>
         <button 
-          onClick={() => setIsLiked(!isLiked)}
-          className={`ml-2 transition-colors ${isLiked ? 'text-spotify-green' : 'text-[#b3b3b3] hover:text-white'}`}
+          onClick={handleToggleLike}
+          className={`ml-2 transition-colors cursor-pointer ${isLiked ? 'text-spotify-green' : 'text-[#b3b3b3] hover:text-white'}`}
+          title={isLiked ? 'Remove from Liked Songs' : 'Save to Liked Songs'}
         >
           <FiHeart size={16} fill={isLiked ? '#1DB954' : 'none'} />
         </button>
@@ -481,12 +703,13 @@ const Player: React.FC = () => {
 
         {/* Progress Bar */}
         <div className="flex items-center gap-2 w-full">
-          <span className="text-[11px] text-[#a7a7a7] w-10 text-right font-mono">
+          <span className="text-[11px] text-[#a7a7a7] w-10 text-right font-mono select-none">
             {formatDuration(localProgress * 1000)}
           </span>
           <div 
             ref={progressRef}
-            className="flex-1 h-1 bg-[#4d4d4d] rounded-full cursor-pointer group relative"
+            className="flex-1 h-2 bg-[#4d4d4d] rounded-full cursor-pointer group relative py-0.5"
+            onClick={handleProgressClick}
             onMouseDown={handleProgressMouseDown}
           >
             <div 
@@ -500,7 +723,7 @@ const Player: React.FC = () => {
               />
             </div>
           </div>
-          <span className="text-[11px] text-[#a7a7a7] w-10 font-mono">
+          <span className="text-[11px] text-[#a7a7a7] w-10 font-mono select-none">
             {formatDuration(duration * 1000)}
           </span>
         </div>
@@ -508,28 +731,18 @@ const Player: React.FC = () => {
 
       {/* Right: Volume & Other Controls */}
       <div className="flex items-center justify-end gap-3 min-w-[180px]">
-        <button className="text-[#b3b3b3] hover:text-white transition-colors p-1">
-          <FiList size={16} />
-        </button>
-        
         <div className="flex items-center gap-2">
           <button 
-            onClick={() => setPlayerVolume(volume === 0 ? 0.5 : 0)}
+            onClick={toggleMute}
             className="text-[#b3b3b3] hover:text-white transition-colors p-1"
           >
             <VolumeIcon size={16} />
           </button>
           <div 
             ref={volumeRef}
-            className="w-24 h-1 bg-[#4d4d4d] rounded-full cursor-pointer group relative"
-            onMouseDown={(e) => {
-              setIsDraggingVolume(true);
-              const rect = volumeRef.current?.getBoundingClientRect();
-              if (rect) {
-                const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-                setPlayerVolume(percent);
-              }
-            }}
+            className="w-24 h-2 bg-[#4d4d4d] rounded-full cursor-pointer group relative py-0.5"
+            onClick={handleVolumeClick}
+            onMouseDown={handleVolumeMouseDown}
           >
             <div 
               className="h-full bg-white group-hover:bg-spotify-green rounded-full relative transition-colors"
@@ -547,7 +760,7 @@ const Player: React.FC = () => {
         <button 
           onClick={toggleFullscreen}
           className="text-[#b3b3b3] hover:text-white transition-colors p-1"
-          title="Fullscreen"
+          title="Fullscreen (F)"
         >
           <FiMaximize2 size={14} />
         </button>

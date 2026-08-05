@@ -18,6 +18,7 @@ import SettingsPage from './pages/SettingsPage';
 import MadeForYouPage from './pages/MadeForYouPage';
 import MadeForYouPlaylistPage from './pages/MadeForYouPlaylistPage';
 import YoutubeMusicHome from './pages/YoutubeMusicHome';
+import YoutubePlaylistPage from './pages/YoutubePlaylistPage';
 
 function App() {
   return (
@@ -50,6 +51,7 @@ function App() {
                 <Route path="made-for-you" element={<MadeForYouPage />} />
                 <Route path="made-for-you/:playlistId" element={<MadeForYouPlaylistPage />} />
                 <Route path="youtube-music" element={<YoutubeMusicHome />} />
+                <Route path="youtube-playlist/:playlistId" element={<YoutubePlaylistPage />} />
               </Route>
 
               {/* Catch all */}

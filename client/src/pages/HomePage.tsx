@@ -66,7 +66,6 @@ const HomePage: React.FC = () => {
     loading: mfyLoading,
     hasImported: mfyImported,
     importFromSpotify: mfyImport,
-    regenerate: mfyRegenerate,
     recordEvent,
   } = useMadeForYou();
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
@@ -174,7 +173,7 @@ const HomePage: React.FC = () => {
           if (response.data.playlists && response.data.playlists.length > 0) {
             sections.push({
               category: { id: q.query.toLowerCase().replace(/\s+/g, '-'), name: q.name, icons: [] },
-              playlists: response.data.playlists,
+              playlists: response.data.playlists.map((p) => ({ ...p, isSpotifyPlaylist: true })),
             });
           }
         } catch (err) {
@@ -209,27 +208,20 @@ const HomePage: React.FC = () => {
   };
 
   // Auto-import Made For You playlists on first visit when Spotify is connected
-  // Also re-import if existing playlists are all empty (previous failed import)
   useEffect(() => {
     if (!user?.spotifyConnected || mfyImportAttempted.current || isOffline || mfyLoading) return;
-    const allEmpty = mfyPlaylists.length > 0 && mfyPlaylists.every((p) => p.tracks.length === 0);
-    if (!mfyImported || allEmpty) {
+    if (!mfyImported) {
       mfyImportAttempted.current = true;
-      // Force re-import if playlists are empty, normal import otherwise
-      mfyImport(allEmpty ? false : true).catch((err) => console.error('[MFY] Auto-import failed:', err));
+      // Always use skipIfExists=true on auto-import — never auto-delete existing playlists
+      mfyImport(true).catch((err) => console.error('[MFY] Auto-import failed:', err));
     }
-  }, [user?.spotifyConnected, mfyImported, mfyPlaylists, isOffline, mfyLoading, mfyImport]);
+  }, [user?.spotifyConnected, mfyImported, isOffline, mfyLoading, mfyImport]);
 
   const handleMfyRegenerate = async () => {
     setMfyRegenerating(true);
     try {
-      const allEmpty = mfyPlaylists.every((p) => p.tracks.length === 0);
-      if (allEmpty && user?.spotifyConnected) {
-        // Force re-import from Spotify when playlists are empty
-        await mfyImport(false);
-      } else {
-        await mfyRegenerate();
-      }
+      // Force re-import from Spotify first for freshest data, then regenerate
+      await mfyImport(false);
     } finally { setMfyRegenerating(false); }
   };
 

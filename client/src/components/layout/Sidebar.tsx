@@ -5,12 +5,15 @@ import {
   FiDownload, 
   FiSettings, 
   FiMusic,
-  FiLogOut
+  FiLogOut,
+  FiPlus,
+  FiHeart
 } from 'react-icons/fi';
-import { MdCategory } from 'react-icons/md';
+
 import { useAuth } from '../../contexts/AuthContext';
 import { useEffect, useState } from 'react';
 import { indexedDB } from '../../services/indexedDB';
+import api from '../../utils/api';
 import type { Playlist } from '../../types';
 
 const Sidebar: React.FC = () => {
@@ -19,14 +22,78 @@ const Sidebar: React.FC = () => {
 
   useEffect(() => {
     loadPlaylists();
-  }, []);
+    window.addEventListener('playlists-updated', loadPlaylists);
+    return () => window.removeEventListener('playlists-updated', loadPlaylists);
+  }, [user]);
 
   const loadPlaylists = async () => {
     try {
-      const data = await indexedDB.getPlaylists();
-      setPlaylists(data);
+      // 1. Load local playlists
+      const localData = await indexedDB.getPlaylists();
+      setPlaylists(localData);
+      
+      // 2. Fetch custom playlists from server if online and logged in
+      if (user && navigator.onLine) {
+        const response = await api.get<{ playlists: Playlist[] }>('/user/playlists');
+        const serverPlaylists = response.data.playlists;
+        
+        if (serverPlaylists && serverPlaylists.length > 0) {
+          // Save to indexedDB
+          await indexedDB.savePlaylists(serverPlaylists);
+          // Reload merged playlists from indexedDB to ensure consistency
+          const updatedData = await indexedDB.getPlaylists();
+          setPlaylists(updatedData);
+        }
+      }
     } catch (error) {
       console.error('Failed to load playlists:', error);
+    }
+  };
+
+  const handleCreatePlaylist = async () => {
+    const name = prompt('Enter playlist name:');
+    if (!name || !name.trim()) return;
+
+    try {
+      const description = prompt('Enter playlist description (optional):') || '';
+      
+      if (navigator.onLine && user) {
+        // Create on server
+        const response = await api.post<{ playlist: Playlist }>('/user/playlists', {
+          name: name.trim(),
+          description: description.trim()
+        });
+        
+        const newPlaylist = response.data.playlist;
+        // Save to IndexedDB
+        await indexedDB.savePlaylists([newPlaylist]);
+      } else {
+        // Offline mode: Create locally
+        const playlistId = `custom_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+        const localPlaylist: Playlist = {
+          id: playlistId,
+          userId: user?.uid || 'offline',
+          name: name.trim(),
+          description: description.trim(),
+          imageUrl: '',
+          trackCount: 0,
+          isPublic: false,
+          owner: {
+            id: user?.uid || 'offline',
+            name: user?.name || 'Local User'
+          },
+          spotifyUrl: '',
+          lastSyncedAt: new Date().toISOString(),
+          createdAt: new Date().toISOString()
+        };
+        await indexedDB.savePlaylists([localPlaylist]);
+      }
+      
+      // Reload playlists
+      await loadPlaylists();
+    } catch (error) {
+      console.error('Failed to create playlist:', error);
+      alert('Failed to create playlist. Please try again.');
     }
   };
 
@@ -138,10 +205,32 @@ const Sidebar: React.FC = () => {
           {/* Playlists */}
           <div className="px-3 flex items-center justify-between text-xs uppercase tracking-[0.18em] text-white/50">
             <h3 className="font-semibold">Playlists</h3>
-            <MdCategory size={14} />
+            <button 
+              onClick={handleCreatePlaylist}
+              className="p-1 rounded hover:bg-white/10 text-white/60 hover:text-white transition-colors cursor-pointer"
+              title="Create Playlist"
+            >
+              <FiPlus size={14} />
+            </button>
           </div>
 
-          {playlists.map((playlist) => (
+          <NavLink
+            to="/playlist/custom_liked_songs"
+            className={({ isActive }) =>
+              `group flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 ${
+                isActive
+                  ? 'bg-emerald-500/20 text-white border border-emerald-500/30 shadow-[0_10px_30px_rgba(16,185,129,0.15)]'
+                  : 'text-white/70 hover:text-white hover:bg-white/5 border border-transparent'
+              }`
+            }
+          >
+            <div className="w-5 h-5 rounded-md bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center text-white shadow-sm">
+              <FiHeart size={12} fill="white" />
+            </div>
+            <span className="font-semibold text-sm">Liked Songs</span>
+          </NavLink>
+
+          {playlists.filter(p => p.id !== 'custom_liked_songs').map((playlist) => (
             <NavLink
               key={playlist.id}
               to={`/playlist/${playlist.id}`}

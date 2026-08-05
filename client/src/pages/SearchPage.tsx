@@ -3,9 +3,10 @@ import { FiSearch, FiPlay, FiClock, FiDownload, FiCheck } from 'react-icons/fi';
 import { usePlayer } from '../contexts/PlayerContext';
 import { useOffline } from '../contexts/OfflineContext';
 import { audioCacheManager } from '../services/audioCacheManager';
+import { indexedDB } from '../services/indexedDB';
 import api from '../utils/api';
 import { formatDuration } from '../utils/helpers';
-import type { Track } from '../types';
+import type { Track, Playlist } from '../types';
 
 interface SearchTrack {
   id: string;
@@ -64,6 +65,7 @@ const SearchPage: React.FC = () => {
   const [topResult, setTopResult] = useState<SearchTrack | null>(null);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [customPlaylists, setCustomPlaylists] = useState<Playlist[]>([]);
 
   const mapSearchTrackToTrack = (track: SearchTrack): Track => {
     return {
@@ -118,12 +120,27 @@ const SearchPage: React.FC = () => {
     }
   }, [results]);
 
-  // Load recent searches from localStorage
+  // Load recent searches from localStorage and custom playlists
   useEffect(() => {
     const saved = localStorage.getItem('sk-music-recent-searches');
     if (saved) {
       setRecentSearches(JSON.parse(saved));
     }
+
+    // Load custom playlists
+    indexedDB.getPlaylists().then(lists => {
+      setCustomPlaylists(lists.filter(l => l.id.startsWith('custom_')));
+    });
+
+    const handlePlaylistsUpdated = () => {
+      indexedDB.getPlaylists().then(lists => {
+        setCustomPlaylists(lists.filter(l => l.id.startsWith('custom_')));
+      });
+    };
+    window.addEventListener('playlists-updated', handlePlaylistsUpdated);
+    return () => {
+      window.removeEventListener('playlists-updated', handlePlaylistsUpdated);
+    };
   }, []);
 
   const saveRecentSearch = (searchQuery: string) => {
@@ -432,11 +449,12 @@ const SearchPage: React.FC = () => {
               <h2 className="text-2xl font-bold text-white mb-4">All results</h2>
               
               {/* Table Header */}
-              <div className="grid grid-cols-[48px_1fr_1fr_80px_48px] gap-4 px-4 py-2 text-spotify-lightgray text-sm border-b border-spotify-lightgray/20 sticky top-20 bg-spotify-black">
+              <div className="grid grid-cols-[48px_1fr_1fr_80px_48px_110px] gap-4 px-4 py-2 text-spotify-lightgray text-sm border-b border-spotify-lightgray/20 sticky top-20 bg-spotify-black">
                 <div>#</div>
                 <div>Title</div>
                 <div>Album</div>
                 <div className="text-right"><FiClock /></div>
+                <div></div>
                 <div></div>
               </div>
 
@@ -449,7 +467,7 @@ const SearchPage: React.FC = () => {
                     <div
                       key={`${track.id}-full-${index}`}
                       onClick={() => handlePlayTrack(track)}
-                      className={`grid grid-cols-[48px_1fr_1fr_80px_48px] gap-4 px-4 py-2 rounded-md group cursor-pointer transition-colors hover:bg-spotify-gray`}
+                      className={`grid grid-cols-[48px_1fr_1fr_80px_48px_110px] gap-4 px-4 py-2 rounded-md group cursor-pointer transition-colors hover:bg-spotify-gray`}
                     >
                       {/* Index / Play Button */}
                       <div className="flex items-center justify-center">
@@ -488,7 +506,7 @@ const SearchPage: React.FC = () => {
                       </div>
 
                       {/* Download Button */}
-                      <div className="flex items-center justify-center">
+                      <div className="flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
                         {(() => {
                           const isCached = cachedTracks.has(track.id);
                           const status = syncStatus.get(track.id);
@@ -513,6 +531,34 @@ const SearchPage: React.FC = () => {
                             </button>
                           );
                         })()}
+                      </div>
+
+                      {/* Playlist Select Dropdown */}
+                      <div className="flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+                        <select
+                          onChange={async (e) => {
+                            const playlistId = e.target.value;
+                            if (!playlistId) return;
+                            const t = mapSearchTrackToTrack(track);
+                            try {
+                              if (navigator.onLine) {
+                                await api.post(`/user/playlists/${playlistId}/tracks`, { track: t });
+                              }
+                              await indexedDB.saveTracks([{ ...t, playlistId }]);
+                              alert('Track added to playlist!');
+                              e.target.value = '';
+                            } catch (err) {
+                              console.error(err);
+                              alert('Failed to add track');
+                            }
+                          }}
+                          className="bg-white/5 border border-white/10 text-white/50 text-[11px] rounded px-1.5 py-1 hover:text-white hover:bg-white/10 cursor-pointer outline-none max-w-[100px] truncate"
+                        >
+                          <option value="">+ Add</option>
+                          {customPlaylists.map(p => (
+                            <option key={p.id} value={p.id}>{p.name}</option>
+                          ))}
+                        </select>
                       </div>
                     </div>
                   );

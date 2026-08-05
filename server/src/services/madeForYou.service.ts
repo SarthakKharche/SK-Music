@@ -97,14 +97,8 @@ export class MadeForYouService {
         };
       }
     } else {
-      // Force re-import: delete all existing playlists first
-      const existing = await db
-        .collection(COL_PLAYLISTS)
-        .where('userId', '==', userId)
-        .get();
-      const batch = db.batch();
-      existing.docs.forEach((doc) => batch.delete(doc.ref));
-      if (!existing.empty) await batch.commit();
+      // Force re-import: we'll delete old playlists only AFTER we successfully create new ones
+      // (handled below)
     }
 
     // Fetch user's Spotify playlists
@@ -166,6 +160,12 @@ export class MadeForYouService {
         continue;
       }
 
+      // Skip playlists that came back empty from Spotify
+      if (spotifyTracks.length === 0) {
+        console.warn(`[MadeForYou] Skipping ${sp.name} — 0 tracks returned from Spotify`);
+        continue;
+      }
+
       const trackEntries: MadeForYouTrackEntry[] = spotifyTracks.map((t, i) => ({
         trackId: t.id,
         position: i,
@@ -220,6 +220,22 @@ export class MadeForYouService {
     if (imported.length === 0) {
       const seeded = await this.createSeededPlaylists(userId);
       imported.push(...seeded);
+    }
+
+    // Only delete old playlists now that we confirmed we have new ones to replace them with
+    // (if skipIfExists is false, meaning force re-import was requested)
+    if (!skipIfExists && imported.length > 0) {
+      const existing = await db
+        .collection(COL_PLAYLISTS)
+        .where('userId', '==', userId)
+        .get();
+      // Only delete docs that aren't the ones we just created
+      const newIds = new Set(imported.map((p) => p.id));
+      const batch = db.batch();
+      existing.docs
+        .filter((doc) => !newIds.has(doc.id))
+        .forEach((doc) => batch.delete(doc.ref));
+      if (!existing.empty) await batch.commit();
     }
 
     return {
@@ -399,41 +415,10 @@ export class MadeForYouService {
       results.push(doc);
     }
 
-    // If we still couldn't get any tracks at all, create minimal placeholders
+    // If we still couldn't get any tracks at all, return empty — no placeholders.
+    // The caller (importFromSpotify) will handle this case gracefully.
     if (results.length === 0) {
-      console.warn('[MadeForYou] No tracks available from Spotify — creating empty placeholders');
-      const templates: Array<{
-        type: MadeForYouPlaylistType;
-        displayName: string;
-        subtitle: string;
-        mixNumber?: number;
-        intervalMs: number;
-      }> = [
-        { type: 'discover_weekly', displayName: 'Discover Weekly', subtitle: 'Play more to unlock personalised recommendations', intervalMs: DISCOVER_WEEKLY_INTERVAL_MS },
-        { type: 'daily_mix', displayName: 'Daily Mix 1', subtitle: 'Play more to unlock personalised recommendations', mixNumber: 1, intervalMs: DAILY_MIX_INTERVAL_MS },
-        { type: 'daily_mix', displayName: 'Daily Mix 2', subtitle: 'Play more to unlock personalised recommendations', mixNumber: 2, intervalMs: DAILY_MIX_INTERVAL_MS },
-      ];
-
-      for (const tpl of templates) {
-        const doc: MadeForYouPlaylist = {
-          id: '',
-          userId,
-          type: tpl.type,
-          mixNumber: tpl.mixNumber,
-          displayName: tpl.displayName,
-          subtitle: tpl.subtitle,
-          source: 'app_generated',
-          tracks: [],
-          generatedAt: now,
-          expiresAt: new Date(Date.now() + tpl.intervalMs).toISOString(),
-          createdAt: now,
-          updatedAt: now,
-        };
-        const docRef = await db.collection(COL_PLAYLISTS).add(doc);
-        doc.id = docRef.id;
-        await docRef.update({ id: docRef.id });
-        results.push(doc);
-      }
+      console.warn('[MadeForYou] No tracks available from Spotify — skipping placeholder creation.');
     }
 
     return results;
@@ -679,6 +664,11 @@ export class MadeForYouService {
       .collection(COL_PLAYLISTS)
       .where('userId', '==', userId)
       .get();
+
+    if (snapshot.empty) {
+      console.log(`[MadeForYou] Auto-seeding initial playlists for user: ${userId}`);
+      return await this.createSeededPlaylists(userId);
+    }
 
     return snapshot.docs.map((doc) => doc.data() as MadeForYouPlaylist);
   }

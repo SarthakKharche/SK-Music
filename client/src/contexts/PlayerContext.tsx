@@ -62,6 +62,7 @@ interface PlayerContextType extends PlayerState {
   previous: () => void;
   seek: (time: number) => void;
   setVolume: (volume: number) => void;
+  toggleMute: () => void;
   toggleRepeat: () => void;
   toggleShuffle: () => void;
   clearQueue: () => void;
@@ -71,16 +72,27 @@ interface PlayerContextType extends PlayerState {
 const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
 
 export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [state, setState] = useState<PlayerState>({
-    currentTrack: null,
-    isPlaying: false,
-    volume: 0.7,
-    currentTime: 0,
-    duration: 0,
-    queue: [],
-    queueIndex: -1,
-    repeat: 'off',
-    shuffle: false,
+  const [state, setState] = useState<PlayerState>(() => {
+    let savedVol = 0.7;
+    try {
+      const raw = localStorage.getItem('playerVolume');
+      if (raw !== null) {
+        const val = parseFloat(raw);
+        if (!isNaN(val) && val > 0 && val <= 1) savedVol = val;
+      }
+    } catch {}
+
+    return {
+      currentTrack: null,
+      isPlaying: false,
+      volume: savedVol,
+      currentTime: 0,
+      duration: 0,
+      queue: [],
+      queueIndex: -1,
+      repeat: 'off',
+      shuffle: false,
+    };
   });
 
   const [isYouTube, setIsYouTube] = useState(false);
@@ -88,6 +100,8 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const youtubePlayerRef = useRef<YouTubePlayer | null>(null);
   const timeUpdateIntervalRef = useRef<number | null>(null);
+  const lastPauseTimeRef = useRef<number>(0);
+  const lastNonZeroVolumeRef = useRef<number>(state.volume > 0 ? state.volume : 0.7);
 
   /**
    * Track listening progress for Made-For-You recommendations.
@@ -455,6 +469,7 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
    * Pause playback
    */
   const pause = (): void => {
+    lastPauseTimeRef.current = Date.now();
     if (isYouTube && youtubePlayerRef.current && typeof youtubePlayerRef.current.pauseVideo === 'function') {
       try {
         youtubePlayerRef.current.pauseVideo();
@@ -477,8 +492,23 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       } catch {
         // Player not ready
       }
-    } else {
-      audioRef.current?.play();
+    } else if (audioRef.current) {
+      const audio = audioRef.current;
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(async (err) => {
+          console.warn('[Player] Audio play failed on resume, auto-recovering:', err);
+          if (state.currentTrack && audioRef.current) {
+            const savedTime = audio.currentTime || state.currentTime;
+            const freshUrl = await audioCacheManager.getAudioUrl(state.currentTrack);
+            if (freshUrl && audioRef.current) {
+              audioRef.current.src = freshUrl;
+              audioRef.current.currentTime = savedTime;
+              audioRef.current.play().catch((e) => console.error('[Player] Re-play error:', e));
+            }
+          }
+        });
+      }
     }
     setState((prev) => ({ ...prev, isPlaying: true }));
   };
@@ -547,7 +577,7 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   /**
    * Handle track end
    */
-  const handleTrackEnd = (): void => {
+  function handleTrackEnd(): void {
     // Report completion for the track that just ended
     if (state.currentTrack && trackingRef.current && !trackingRef.current.reported) {
       reportListeningEvent(state.currentTrack, 'complete', 100);
@@ -593,6 +623,14 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
    * Set volume
    */
   const setVolume = (volume: number): void => {
+    if (volume > 0) {
+      lastNonZeroVolumeRef.current = volume;
+    }
+
+    try {
+      localStorage.setItem('playerVolume', volume.toString());
+    } catch {}
+
     if (isYouTube && youtubePlayerRef.current && typeof youtubePlayerRef.current.setVolume === 'function') {
       try {
         youtubePlayerRef.current.setVolume(volume * 100);
@@ -604,6 +642,19 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       audioRef.current.volume = volume;
     }
     setState((prev) => ({ ...prev, volume }));
+  };
+
+  /**
+   * Toggle mute / restore previous non-zero volume
+   */
+  const toggleMute = (): void => {
+    if (state.volume === 0) {
+      const restored = lastNonZeroVolumeRef.current > 0 ? lastNonZeroVolumeRef.current : 0.7;
+      setVolume(restored);
+    } else {
+      lastNonZeroVolumeRef.current = state.volume;
+      setVolume(0);
+    }
   };
 
   /**
@@ -644,6 +695,7 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     previous,
     seek,
     setVolume,
+    toggleMute,
     toggleRepeat,
     toggleShuffle,
     clearQueue,

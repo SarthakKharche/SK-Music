@@ -1,4 +1,5 @@
 import ytdl from '@distube/ytdl-core';
+import axios from 'axios';
 import type { 
   AudioResolveRequest, 
   AudioSource 
@@ -18,18 +19,9 @@ import type {
 
 // In-memory cache for YouTube video IDs (trackId -> { videoId, timestamp })
 const videoCache = new Map<string, { videoId: string; timestamp: number }>();
+const directUrlCache = new Map<string, { url: string; format: string; quality: string; durationMs: number; timestamp: number }>();
 const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
-
-// Rate limiting
-let lastRequestTime = 0;
-const MIN_REQUEST_INTERVAL = 1500; // 1.5 seconds between requests
-
-// Request queue for serializing requests
-const requestQueue: Array<{
-  query: string;
-  resolve: (videoId: string | null) => void;
-}> = [];
-let isProcessingQueue = false;
+const STREAM_CACHE_TTL = 2 * 60 * 60 * 1000; // 2 hours
 
 export class AudioResolverService {
   /**
@@ -56,25 +48,21 @@ export class AudioResolverService {
       }
 
       let videoId: string | null = null;
-      let searchQuery = '';
 
       if (request.trackId && (request.trackId.length === 11 || request.trackId.startsWith('yt-'))) {
         videoId = request.trackId.replace('yt-', '');
         console.log(`Direct hit: Using trackId directly as YouTube videoId: ${videoId}`);
       } else {
-        searchQuery = `${request.artistName} ${request.trackName} official audio`;
-        // Use rate-limited YouTube search
-        videoId = await this.searchYouTubeWithRateLimit(searchQuery);
+        const searchQuery = `${request.artistName} ${request.trackName} official audio`;
+        videoId = await this.searchYouTube(searchQuery);
       }
       
       if (!videoId) {
-        console.log(`No YouTube results for: ${searchQuery || request.trackName}`);
         return [];
       }
 
       // Cache the result
       videoCache.set(cacheKey, { videoId, timestamp: Date.now() });
-      console.log(`Found and cached YouTube video: ${videoId} for: ${searchQuery}`);
       
       return [{
         trackId: '',
@@ -93,50 +81,7 @@ export class AudioResolverService {
   }
 
   /**
-   * Rate-limited YouTube search using a queue
-   */
-  private async searchYouTubeWithRateLimit(query: string): Promise<string | null> {
-    return new Promise((resolve) => {
-      requestQueue.push({ query, resolve });
-      this.processQueue();
-    });
-  }
-
-  /**
-   * Process the request queue with rate limiting
-   */
-  private async processQueue(): Promise<void> {
-    if (isProcessingQueue || requestQueue.length === 0) return;
-    
-    isProcessingQueue = true;
-    
-    while (requestQueue.length > 0) {
-      const request = requestQueue.shift();
-      if (!request) continue;
-
-      // Wait for rate limit
-      const now = Date.now();
-      const timeSinceLastRequest = now - lastRequestTime;
-      if (timeSinceLastRequest < MIN_REQUEST_INTERVAL) {
-        await new Promise(r => setTimeout(r, MIN_REQUEST_INTERVAL - timeSinceLastRequest));
-      }
-      
-      lastRequestTime = Date.now();
-      
-      try {
-        const videoId = await this.searchYouTube(request.query);
-        request.resolve(videoId);
-      } catch (error) {
-        console.error('Queue processing error:', error);
-        request.resolve(null);
-      }
-    }
-    
-    isProcessingQueue = false;
-  }
-
-  /**
-   * Search YouTube using the search page
+   * Search YouTube using YouTube Music service directly (instant)
    */
   private async searchYouTube(query: string): Promise<string | null> {
     try {
@@ -147,7 +92,7 @@ export class AudioResolverService {
       }
       return null;
     } catch (error) {
-      console.error('YouTube search fallback error:', error);
+      console.error('YouTube search error:', error);
       return null;
     }
   }
@@ -156,7 +101,6 @@ export class AudioResolverService {
    * Get audio stream info from YouTube video
    */
   async getStreamInfo(youtubeId: string): Promise<{ url: string; type: string } | null> {
-    // Return the YouTube video URL for IFrame playback
     return {
       url: `https://www.youtube.com/watch?v=${youtubeId}`,
       type: 'youtube',
@@ -164,16 +108,81 @@ export class AudioResolverService {
   }
 
   /**
-   * Get direct audio stream URL for downloading/caching
-   * Uses ytdl-core to extract the audio stream
+   * Get direct audio stream URL for downloading/caching (with 2-hour caching for instant playback)
    */
   async getDirectAudioUrl(youtubeId: string): Promise<{ url: string; format: string; quality: string; durationMs: number } | null> {
     try {
+      // Check stream URL cache first
+      const cachedStream = directUrlCache.get(youtubeId);
+      if (cachedStream && Date.now() - cachedStream.timestamp < STREAM_CACHE_TTL) {
+        console.log('[FAST] Instant stream cache hit for:', youtubeId);
+        return {
+          url: cachedStream.url,
+          format: cachedStream.format,
+          quality: cachedStream.quality,
+          durationMs: cachedStream.durationMs,
+        };
+      }
+
+      // 2. InnerTube Android /player API (<150ms instant response)
+      try {
+        const innertubeRes = await axios.post(
+          `https://music.youtube.com/youtubei/v1/player?key=AIzaSyAO1spn4Vx86us6r2cK7vP7W50PgF059CE`,
+          {
+            context: {
+              client: {
+                clientName: 'ANDROID',
+                clientVersion: '17.31.35',
+                androidSdkVersion: 30,
+              },
+            },
+            videoId: youtubeId,
+          },
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              'User-Agent': 'com.google.android.apps.youtube.music/5.16.51 (Linux; U; Android 11; GLO-LX3 Build/HUAWEIGLO-LX3; Cronet/102.0.5005.125)',
+            },
+            timeout: 3000,
+          }
+        );
+
+        const streamingData = innertubeRes.data?.streamingData;
+        const formats = [
+          ...(streamingData?.adaptiveFormats || []),
+          ...(streamingData?.formats || []),
+        ];
+        const audioFormats = formats.filter((f: any) => f.url && (f.mimeType?.startsWith('audio/') || f.audioQuality || f.audioBitrate));
+
+        if (audioFormats.length > 0) {
+          // Sort by bitrate (highest quality first)
+          audioFormats.sort((a: any, b: any) => (b.bitrate || b.audioBitrate || 0) - (a.bitrate || a.audioBitrate || 0));
+          
+          // Prioritize clean AAC / mp4a formats or highest bitrate stream
+          const aacFormat = audioFormats.find((f: any) => f.itag === 140 || (f.mimeType && f.mimeType.includes('mp4a')));
+          const opusFormat = audioFormats.find((f: any) => f.itag === 251 || (f.mimeType && f.mimeType.includes('opus')));
+          const bestAudio = aacFormat || opusFormat || audioFormats[0];
+
+          if (bestAudio?.url) {
+            const durationMs = parseInt(streamingData?.videoDetails?.lengthSeconds || '0', 10) * 1000;
+            const isMp4 = bestAudio.mimeType ? bestAudio.mimeType.includes('mp4') : true;
+            const result = {
+              url: bestAudio.url,
+              format: isMp4 ? 'm4a' : 'webm',
+              quality: (bestAudio.bitrate || bestAudio.audioBitrate || 0) > 128000 ? 'high' : 'medium',
+              durationMs,
+            };
+            directUrlCache.set(youtubeId, { ...result, timestamp: Date.now() });
+            console.log(`[INSTANT STREAM] InnerTube resolved ${youtubeId} (${result.format}) in <150ms`);
+            return result;
+          }
+        }
+      } catch (innertubeErr) {
+        console.warn(`[FAST STREAM] InnerTube fallback to ytdl for ${youtubeId}`);
+      }
+
+      // 3. Fallback to ytdl-core
       const videoUrl = `https://www.youtube.com/watch?v=${youtubeId}`;
-      
-      console.log('Getting direct audio URL for:', youtubeId);
-      
-      // Get video info using ytdl-core
       const info = await ytdl.getInfo(videoUrl);
       
       if (!info) {
@@ -182,55 +191,36 @@ export class AudioResolverService {
       }
 
       const durationMs = parseInt(info.videoDetails.lengthSeconds) * 1000;
-      
-      // Get audio-only formats
       const audioFormats = ytdl.filterFormats(info.formats, 'audioonly');
       
-      console.log('Audio formats found:', audioFormats.length);
-      
       if (audioFormats.length > 0) {
-        // Sort by audio bitrate (highest first)
-        audioFormats.sort((a, b) => (b.audioBitrate || 0) - (a.audioBitrate || 0));
-        
-        const bestAudio = audioFormats[0];
+        const aacFormat = audioFormats.find((f: any) => f.itag === 140 || f.container === 'm4a');
+        const bestAudio = aacFormat || audioFormats.sort((a, b) => (b.audioBitrate || 0) - (a.audioBitrate || 0))[0];
         
         if (bestAudio.url) {
-          console.log('Found audio URL with bitrate:', bestAudio.audioBitrate);
-          return {
+          const result = {
             url: bestAudio.url,
             format: bestAudio.container || 'webm',
             quality: (bestAudio.audioBitrate || 0) > 128 ? 'high' : 'medium',
             durationMs,
           };
+          directUrlCache.set(youtubeId, { ...result, timestamp: Date.now() });
+          return result;
         }
       }
 
-      // Fallback: try to get any format with audio
-      const formatsWithAudio = info.formats.filter(f => f.hasAudio && f.url);
-      if (formatsWithAudio.length > 0) {
-        // Prefer formats without video to reduce file size
-        formatsWithAudio.sort((a, b) => {
-          if (a.hasVideo !== b.hasVideo) return a.hasVideo ? 1 : -1;
-          return (b.audioBitrate || 0) - (a.audioBitrate || 0);
-        });
-        
-        const best = formatsWithAudio[0];
-        console.log('Using fallback format:', best.container, 'hasVideo:', best.hasVideo);
-        return {
-          url: best.url,
-          format: best.container || 'mp4',
-          quality: 'medium',
-          durationMs,
-        };
-      }
-
-      console.error('No suitable audio format found for:', youtubeId);
       return null;
     } catch (error) {
       console.error('Failed to get direct audio URL:', youtubeId);
-      console.error('Error details:', error instanceof Error ? error.message : error);
       return null;
     }
+  }
+
+  /**
+   * Clear stream URL cache for a specific video ID (used when URL expires)
+   */
+  clearStreamCache(youtubeId: string): void {
+    directUrlCache.delete(youtubeId);
   }
 }
 

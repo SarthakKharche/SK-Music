@@ -3,7 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { usePlayer } from '../contexts/PlayerContext';
 import api from '../utils/api';
 import { FiPlay, FiClock, FiArrowLeft, FiMusic } from 'react-icons/fi';
-import type { Track } from '../types';
+import { indexedDB } from '../services/indexedDB';
+import type { Track, Playlist } from '../types';
 
 interface SpotifyPlaylistData {
   id: string;
@@ -26,12 +27,29 @@ const SpotifyPlaylistPage: React.FC = () => {
   const [tracks, setTracks] = useState<Track[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
+  const [customPlaylists, setCustomPlaylists] = useState<Playlist[]>([]);
+ 
   useEffect(() => {
     if (playlistId) {
       loadPlaylist();
     }
   }, [playlistId]);
+
+  useEffect(() => {
+    indexedDB.getPlaylists().then(lists => {
+      setCustomPlaylists(lists.filter(l => l.id.startsWith('custom_')));
+    });
+
+    const handlePlaylistsUpdated = () => {
+      indexedDB.getPlaylists().then(lists => {
+        setCustomPlaylists(lists.filter(l => l.id.startsWith('custom_')));
+      });
+    };
+    window.addEventListener('playlists-updated', handlePlaylistsUpdated);
+    return () => {
+      window.removeEventListener('playlists-updated', handlePlaylistsUpdated);
+    };
+  }, []);
 
   const loadPlaylist = async () => {
     try {
@@ -155,13 +173,14 @@ const SpotifyPlaylistPage: React.FC = () => {
       {/* Track List */}
       <div className="px-6">
         {/* Header Row */}
-        <div className="grid grid-cols-[16px_4fr_2fr_1fr] gap-4 px-4 py-2 border-b border-white/10 text-spotify-lightgray text-sm">
+        <div className="grid grid-cols-[16px_4fr_2fr_1fr_110px] gap-4 px-4 py-2 border-b border-white/10 text-spotify-lightgray text-sm">
           <span>#</span>
           <span>Title</span>
           <span>Album</span>
           <span className="flex justify-end">
             <FiClock />
           </span>
+          <div></div>
         </div>
 
         {/* Tracks */}
@@ -170,7 +189,7 @@ const SpotifyPlaylistPage: React.FC = () => {
             <div
               key={track.id}
               onClick={() => handlePlayTrack(track, index)}
-              className={`grid grid-cols-[16px_4fr_2fr_1fr] gap-4 px-4 py-2 rounded-md cursor-pointer group
+              className={`grid grid-cols-[16px_4fr_2fr_1fr_110px] gap-4 px-4 py-2 rounded-md cursor-pointer group
                 ${isCurrentTrack(track) ? 'bg-white/20' : 'hover:bg-white/10'}`}
             >
               {/* Track Number / Play Icon */}
@@ -224,6 +243,33 @@ const SpotifyPlaylistPage: React.FC = () => {
               {/* Duration */}
               <div className="flex items-center justify-end text-spotify-lightgray text-sm">
                 {formatDuration(track.durationMs)}
+              </div>
+
+              {/* Playlist Select Dropdown */}
+              <div className="flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+                <select
+                  onChange={async (e) => {
+                    const targetPlaylistId = e.target.value;
+                    if (!targetPlaylistId) return;
+                    try {
+                      if (navigator.onLine) {
+                        await api.post(`/user/playlists/${targetPlaylistId}/tracks`, { track });
+                      }
+                      await indexedDB.saveTracks([{ ...track, playlistId: targetPlaylistId }]);
+                      alert('Track added to playlist!');
+                      e.target.value = '';
+                    } catch (err) {
+                      console.error(err);
+                      alert('Failed to add track');
+                    }
+                  }}
+                  className="bg-white/5 border border-white/10 text-white/50 text-[11px] rounded px-1.5 py-1 hover:text-white hover:bg-white/10 cursor-pointer outline-none max-w-[100px] truncate"
+                >
+                  <option value="">+ Add</option>
+                  {customPlaylists.map(p => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
               </div>
             </div>
           ))}
