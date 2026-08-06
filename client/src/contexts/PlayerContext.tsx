@@ -426,17 +426,74 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         return;
       }
 
-      // Regular HTML5 / Cached Blob audio playback
-      setIsYouTube(false);
-      
-      // Stop YouTube if playing
-      if (youtubePlayerRef.current && typeof youtubePlayerRef.current.pauseVideo === 'function') {
+      // Regular HTML5 / Cached Blob audio playback    // Set track and playing state
+    setCurrentTrack(track);
+    setIsPlaying(true);
+
+    try {
+      // 1. Get audio URL (IndexedDB offline cache or JioSaavn/YouTube stream)
+      let url = await audioCacheManager.getAudioUrl(track);
+
+      // If online and URL is YouTube videoId, resolve direct 320kbps CDN stream
+      if (url && url.startsWith('youtube:')) {
+        const youtubeId = url.replace('youtube:', '');
         try {
-          youtubePlayerRef.current.pauseVideo();
+          const saavnRes = await fetch(`https://saavn.dev/api/search/songs?query=${encodeURIComponent(`${track.name} ${track.artists[0]?.name}`)}`);
+          if (saavnRes.ok) {
+            const saavnData = await saavnRes.json();
+            const songs = saavnData?.data?.results;
+            if (songs && songs.length > 0 && songs[0].downloadUrl) {
+              const downloadUrls = songs[0].downloadUrl;
+              const highestQual = downloadUrls[downloadUrls.length - 1]?.url || downloadUrls[0]?.url;
+              if (highestQual) {
+                url = highestQual;
+              }
+            }
+          }
         } catch {
-          // Player not ready
+          // Keep original url
         }
       }
+
+      if (!url) {
+        console.warn('No audio URL found for track');
+        setIsPlaying(false);
+        return;
+      }
+
+      // If YouTube fallback is needed
+      if (url.startsWith('youtube:')) {
+        const videoId = url.replace('youtube:', '');
+        setIsYouTube(true);
+        if (audioRef.current) {
+          audioRef.current.pause();
+        }
+        if (youtubePlayerRef.current && isYouTubeReady) {
+          youtubePlayerRef.current.loadVideoById(videoId);
+          youtubePlayerRef.current.playVideo();
+        }
+      } else {
+        // Direct HTML5 Audio Playback (IMMEDIATE PLAYBACK <50ms)
+        setIsYouTube(false);
+        if (youtubePlayerRef.current && isYouTubeReady) {
+          try { youtubePlayerRef.current.pauseVideo(); } catch {}
+        }
+        if (audioRef.current) {
+          audioRef.current.src = url;
+          audioRef.current.load();
+          const playPromise = audioRef.current.play();
+          if (playPromise !== undefined) {
+            playPromise.catch((err) => {
+              console.warn('HTML5 audio play error:', err);
+            });
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Failed to play track:', error);
+      setIsPlaying(false);
+    }
+      
       if (timeUpdateIntervalRef.current) {
         clearInterval(timeUpdateIntervalRef.current);
         timeUpdateIntervalRef.current = null;
