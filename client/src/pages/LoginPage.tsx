@@ -9,9 +9,9 @@ const LoginPage: React.FC = () => {
   const getAuthUrl = (): string => {
     const apiUrl = import.meta.env.VITE_API_URL;
     if (apiUrl) {
-      return apiUrl.endsWith('/api') ? `${apiUrl}/auth/google` : `${apiUrl}/api/auth/google`;
+      const base = apiUrl.replace(/\/$/, '');
+      return base.endsWith('/api') ? `${base}/auth/google` : `${base}/api/auth/google`;
     }
-    // Default to relative path /api/auth/google to work seamlessly with Vercel rewrites & dev proxy
     return '/api/auth/google';
   };
 
@@ -19,6 +19,7 @@ const LoginPage: React.FC = () => {
     setLoading(true);
     setError(null);
     const authUrl = getAuthUrl();
+    console.log('Navigating to Auth URL:', authUrl);
     window.location.href = authUrl;
   };
 
