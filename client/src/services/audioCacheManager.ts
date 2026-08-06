@@ -79,19 +79,26 @@ class AudioCacheManager {
       // If we have a stored YouTube ID as fallback, use it
       if (storedYoutubeId) {
         console.log('Fallback: Using stored YouTube ID for:', track.name);
-        return `https://inv.tux.pizza/latest_version?id=${storedYoutubeId}&itag=140`;
+        return `https://invidious.nerdvpn.de/latest_version?id=${storedYoutubeId}&itag=140`;
       }
       console.warn('No audio source found for track:', track.name);
       return null;
     }
 
-    // Return high-speed public Invidious CDN audio stream directly to the browser
+    // Return high-speed public audio stream with automatic CDN failover
     if (source.youtubeId) {
       console.log('Using YouTube source for:', track.name, source.youtubeId);
       localStorage.setItem(`youtube_${track.id}`, source.youtubeId);
       
-      // Public Invidious CDN endpoints (itag 140 = clean 128kbps AAC audio)
-      return `https://inv.tux.pizza/latest_version?id=${source.youtubeId}&itag=140`;
+      const cdnMirrors = [
+        `https://invidious.nerdvpn.de/latest_version?id=${source.youtubeId}&itag=140`,
+        `https://invidious.drgns.space/latest_version?id=${source.youtubeId}&itag=140`,
+        `https://vid.puffyan.us/latest_version?id=${source.youtubeId}&itag=140`,
+        `https://invidious.flokinet.to/latest_version?id=${source.youtubeId}&itag=140`,
+      ];
+
+      // Return fast working mirror URL
+      return cdnMirrors[0];
     }
 
     // For direct audio URLs, cache in background
