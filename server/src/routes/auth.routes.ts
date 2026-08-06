@@ -119,28 +119,34 @@ router.get('/me', isAuthenticated, async (req, res): Promise<void> => {
   try {
     const user = req.user as User;
     
-    // Always fetch fresh data from Firestore for JWT tokens
-    const db = getFirestore();
-    const userDoc = await db.collection('users').doc(user.uid).get();
-    
-    if (!userDoc.exists) {
-      res.status(404).json({ error: 'User not found' });
-      return;
+    // Always attempt to fetch fresh data from Firestore
+    try {
+      const db = getFirestore();
+      const userDoc = await db.collection('users').doc(user.uid).get();
+      if (userDoc.exists) {
+        const userData = userDoc.data() as User;
+        return res.json({
+          uid: userData.uid,
+          email: userData.email,
+          name: userData.name,
+          picture: userData.picture,
+          spotifyConnected: userData.spotifyConnected || false,
+          spotifyUserId: userData.spotifyUserId,
+        });
+      }
+    } catch (dbErr) {
+      console.warn('Firestore fetch failed, returning session user:', dbErr);
     }
     
-    const userData = userDoc.data() as User;
-    
-    // Remove sensitive tokens from response
-    const sanitizedUser = {
-      uid: userData.uid,
-      email: userData.email,
-      name: userData.name,
-      picture: userData.picture,
-      spotifyConnected: userData.spotifyConnected || false,
-      spotifyUserId: userData.spotifyUserId,
-    };
-    
-    res.json(sanitizedUser);
+    // Fallback if Firestore doc not found yet
+    res.json({
+      uid: user.uid,
+      email: user.email,
+      name: user.name || 'User',
+      picture: user.picture || '',
+      spotifyConnected: user.spotifyConnected || false,
+      spotifyUserId: user.spotifyUserId,
+    });
   } catch (error) {
     console.error('Error fetching user:', error);
     res.status(500).json({ error: 'Failed to fetch user data' });
