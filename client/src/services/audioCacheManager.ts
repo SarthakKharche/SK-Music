@@ -141,31 +141,37 @@ class AudioCacheManager {
         progress: 0,
       });
 
-      console.log('[OFFLINE] Fetching audio binary stream via CORS proxy:', youtubeId);
+      console.log('[OFFLINE] Fetching audio binary stream via Cobalt API:', youtubeId);
       
-      const corsProxies = [
-        `https://corsproxy.io/?https://yewtu.be/latest_version?id=${youtubeId}&itag=140`,
-        `https://corsproxy.io/?https://invidious.nerdvpn.de/latest_version?id=${youtubeId}&itag=140`,
-        `https://thingproxy.freeboard.io/fetch/https://yewtu.be/latest_version?id=${youtubeId}&itag=140`,
-        `${import.meta.env.VITE_API_URL || '/api'}/audio/download/${youtubeId}`,
-      ];
+      let audioBlobUrl: string | null = null;
 
-      let audioResponse: Response | null = null;
-      for (const proxyUrl of corsProxies) {
-        try {
-          const res = await fetch(proxyUrl);
-          if (res.ok && res.status === 200) {
-            audioResponse = res;
-            break;
+      try {
+        const res = await fetch('https://api.cobalt.tools/', {
+          method: 'POST',
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            url: `https://www.youtube.com/watch?v=${youtubeId}`,
+            downloadMode: 'audio',
+          }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.url) {
+            audioBlobUrl = data.url;
           }
-        } catch {
-          // Try next proxy
         }
+      } catch (e) {
+        console.warn('Cobalt API fetch error:', e);
       }
 
-      if (!audioResponse) {
-        throw new Error('All CORS audio proxies failed');
+      if (!audioBlobUrl) {
+        audioBlobUrl = `${import.meta.env.VITE_API_URL || '/api'}/audio/download/${youtubeId}`;
       }
+
+      const audioResponse = await fetch(audioBlobUrl);
 
       if (!audioResponse.ok) {
         throw new Error(`Audio download failed: ${audioResponse.status}`);
