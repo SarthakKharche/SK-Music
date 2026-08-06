@@ -141,27 +141,14 @@ class AudioCacheManager {
         progress: 0,
       });
 
-      console.log('[OFFLINE] Downloading audio via server proxy:', youtubeId);
+      console.log('[OFFLINE] Fetching audio stream blob for offline storage:', youtubeId);
       
-      // Get auth token for the request (using correct key from api.ts)
-      const token = localStorage.getItem('authToken');
+      const audioUrl = `https://invidious.drgns.space/latest_version?id=${youtubeId}&itag=140`;
       
-      if (!token) {
-        console.log('[OFFLINE] Skipping download - not authenticated');
-        return; // Silently skip if not authenticated
-      }
-      
-      // Download audio directly from our server (which proxies from YouTube)
-      const audioResponse = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/audio/download/${youtubeId}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-        credentials: 'include',
-      });
+      const audioResponse = await fetch(audioUrl);
       
       if (!audioResponse.ok) {
-        const errorText = await audioResponse.text();
-        throw new Error(`Server error: ${audioResponse.status} - ${errorText}`);
+        throw new Error(`Stream error: ${audioResponse.status}`);
       }
 
       // Get metadata from response headers
