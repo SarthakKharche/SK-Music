@@ -136,9 +136,9 @@ class AudioCacheManager {
    * Download audio from JioSaavn CDN directly in browser
    */
   private async _downloadFromYouTube(track: Track): Promise<CachedAudio> {
-    // Strip parentheses, quotes, and special characters for clean search
     const cleanTitle = track.name.replace(/[\(\)\[\]"'\-_]/g, ' ').replace(/\s+/g, ' ').trim();
-    const query = encodeURIComponent(`${cleanTitle} ${track.artists?.[0]?.name || ''}`);
+    const artistName = track.artists?.[0]?.name || '';
+    const query = encodeURIComponent(`${cleanTitle} ${artistName}`);
 
     this.notifySyncStatus({
       trackId: track.id,
@@ -150,31 +150,38 @@ class AudioCacheManager {
 
     let audioBlobUrl: string | null = null;
 
-    // 1. Try active JioSaavn API mirrors
-    const saavnEndpoints = [
-      `https://saavn.me/api/search/songs?query=${query}`,
-      `https://jiosaavn-api-private-us.vercel.app/search/songs?query=${query}`,
-      `https://saavn.dev/api/search/songs?query=${query}`,
-    ];
+    // 1. Try Vercel Serverless / EC2 Saavn resolution
+    try {
+      const saavnRes = await fetch(`/api/saavn-search?query=${query}`);
+      if (saavnRes.ok) {
+        const saavnData = await saavnRes.json();
+        if (saavnData?.url) {
+          audioBlobUrl = saavnData.url;
+        }
+      }
+    } catch (e) {
+      console.warn('Saavn stream resolution error:', e);
+    }
 
-    for (const endpoint of saavnEndpoints) {
-      try {
-        const saavnRes = await fetch(endpoint);
-        if (saavnRes.ok) {
-          const saavnData = await saavnRes.json();
-          const songs = saavnData?.data?.results || saavnData?.results;
-          if (songs && songs.length > 0 && songs[0].downloadUrl) {
-            const downloadUrls = songs[0].downloadUrl;
-            const highestQual = downloadUrls[downloadUrls.length - 1]?.url || downloadUrls[0]?.url;
-            if (highestQual) {
-              audioBlobUrl = highestQual;
-              console.log('[OFFLINE] Resolved JioSaavn CDN audio URL from:', endpoint);
-              break;
+    // 2. Direct CORS proxy fallback
+    if (!audioBlobUrl) {
+      const corsProxies = [
+        `https://corsproxy.io/?https://saavn.me/api/search/songs?query=${query}`,
+        `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://saavn.me/api/search/songs?query=${query}`)}`,
+      ];
+      for (const proxy of corsProxies) {
+        try {
+          const res = await fetch(proxy);
+          if (res.ok) {
+            const data = await res.json();
+            const songs = data?.data?.results || data?.results;
+            if (songs && songs.length > 0 && songs[0].downloadUrl) {
+              const downloadUrls = songs[0].downloadUrl;
+              audioBlobUrl = downloadUrls[downloadUrls.length - 1]?.url || downloadUrls[0]?.url;
+              if (audioBlobUrl) break;
             }
           }
-        }
-      } catch (e) {
-        // Try next Saavn endpoint
+        } catch {}
       }
     }
 

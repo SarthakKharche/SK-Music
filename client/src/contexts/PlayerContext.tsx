@@ -447,30 +447,16 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         if (url.startsWith('saavn:')) {
           const parts = url.split(':');
           const query = parts[1];
-          const saavnEndpoints = [
-            `https://saavn.me/api/search/songs?query=${query}`,
-            `https://jiosaavn-api-private-us.vercel.app/search/songs?query=${query}`,
-            `https://saavn.dev/api/search/songs?query=${query}`,
-          ];
-
-          for (const endpoint of saavnEndpoints) {
-            try {
-              const saavnRes = await fetch(endpoint);
-              if (saavnRes.ok) {
-                const saavnData = await saavnRes.json();
-                const songs = saavnData?.data?.results || saavnData?.results;
-                if (songs && songs.length > 0 && songs[0].downloadUrl) {
-                  const downloadUrls = songs[0].downloadUrl;
-                  const highestQual = downloadUrls[downloadUrls.length - 1]?.url || downloadUrls[0]?.url;
-                  if (highestQual) {
-                    url = highestQual;
-                    break;
-                  }
-                }
+          try {
+            const saavnRes = await fetch(`/api/saavn-search?query=${query}`);
+            if (saavnRes.ok) {
+              const saavnData = await saavnRes.json();
+              if (saavnData?.url) {
+                url = saavnData.url;
               }
-            } catch {
-              // Try next Saavn endpoint
             }
+          } catch {
+            // Fallback to CORS proxy
           }
         }
 
