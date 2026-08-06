@@ -141,9 +141,9 @@ class AudioCacheManager {
         progress: 0,
       });
 
-      console.log('[OFFLINE] Fetching audio binary via Vercel endpoint:', youtubeId);
+      console.log('[OFFLINE] Fetching audio binary via EC2 download proxy:', youtubeId);
       
-      const audioResponse = await fetch(`/api/download?id=${youtubeId}`);
+      const audioResponse = await fetch(`/api/audio/download/${youtubeId}`);
 
       if (!audioResponse.ok) {
         throw new Error(`Audio download failed: ${audioResponse.status}`);

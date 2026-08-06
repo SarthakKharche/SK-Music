@@ -155,23 +155,23 @@ router.get('/download/:youtubeId', async (req, res) => {
 
     for (const sourceUrl of streamSources) {
       try {
-        console.log(`[DOWNLOAD] Downloading stream from: ${sourceUrl}`);
+        console.log(`[DOWNLOAD] Fetching binary audio buffer from: ${sourceUrl}`);
         const streamRes = await axios.get(sourceUrl, {
-          responseType: 'stream',
-          timeout: 7000,
+          responseType: 'arraybuffer',
+          timeout: 10000,
           headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
           },
         });
 
-        if (streamRes.status >= 200 && streamRes.status < 300) {
-          res.setHeader('Content-Type', 'audio/mp4');
-          res.setHeader('X-Audio-Format', 'mp4');
-          if (streamRes.headers['content-length']) {
-            res.setHeader('Content-Length', streamRes.headers['content-length']);
+        if (streamRes.status >= 200 && streamRes.status < 300 && streamRes.data) {
+          const buffer = Buffer.from(streamRes.data);
+          if (buffer.length > 50000) {
+            res.setHeader('Content-Type', 'audio/mp4');
+            res.setHeader('X-Audio-Format', 'mp4');
+            res.setHeader('Content-Length', buffer.length.toString());
+            return res.send(buffer);
           }
-          streamRes.data.pipe(res);
-          return;
         }
       } catch (err) {
         console.warn(`[DOWNLOAD] Source failed: ${sourceUrl}`);
