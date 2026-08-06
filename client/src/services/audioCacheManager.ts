@@ -141,9 +141,33 @@ class AudioCacheManager {
         progress: 0,
       });
 
-      console.log('[OFFLINE] Fetching audio binary via EC2 download proxy:', youtubeId);
+      console.log('[OFFLINE] Fetching audio stream via Cobalt API:', youtubeId);
       
-      const audioResponse = await fetch(`/api/audio/download/${youtubeId}`);
+      let audioBlobUrl: string | null = null;
+      try {
+        const cobaltRes = await fetch('https://api.cobalt.tools/', {
+          method: 'POST',
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            url: `https://www.youtube.com/watch?v=${youtubeId}`,
+          }),
+        });
+        const cobaltData = await cobaltRes.json();
+        if (cobaltData?.url) {
+          audioBlobUrl = cobaltData.url;
+        }
+      } catch (e) {
+        console.warn('Cobalt stream fetch error:', e);
+      }
+
+      if (!audioBlobUrl) {
+        audioBlobUrl = `${import.meta.env.VITE_API_URL || '/api'}/audio/download/${youtubeId}`;
+      }
+
+      const audioResponse = await fetch(audioBlobUrl);
 
       if (!audioResponse.ok) {
         throw new Error(`Audio download failed: ${audioResponse.status}`);
