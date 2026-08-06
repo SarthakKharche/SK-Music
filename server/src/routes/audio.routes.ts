@@ -56,12 +56,28 @@ router.get('/saavn-search', async (req, res) => {
       }
     }
 
-    // 2. If Saavn search misses (e.g. YouTube Remixes), fallback to YouTube Invidious CDN stream
+    // 2. If Saavn search misses (e.g. YouTube Remixes), fallback to Cobalt API stream
     if (!directMp3Url) {
       const trackId = req.query.trackId as string || rawQuery;
       const youtubeId = trackId.startsWith('yt-') ? trackId.replace('yt-', '') : trackId;
-      console.log(`[DOWNLOAD] Saavn search missed, trying Invidious fallback for YouTube ID: ${youtubeId}`);
-      directMp3Url = `https://invidious.nerdvpn.de/latest_version?id=${youtubeId}&itag=140`;
+      console.log(`[DOWNLOAD] Saavn search missed, trying Cobalt fallback for YouTube ID: ${youtubeId}`);
+      
+      try {
+        const cobaltRes = await axios.post(
+          'https://api.cobalt.tools',
+          { url: `https://www.youtube.com/watch?v=${youtubeId}`, downloadMode: 'audio' },
+          { headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, timeout: 6000 }
+        );
+        if (cobaltRes.data?.url) {
+          directMp3Url = cobaltRes.data.url;
+        }
+      } catch (e) {
+        console.warn('[DOWNLOAD] Cobalt fallback failed:', e);
+      }
+    }
+
+    if (!directMp3Url) {
+      return res.status(404).json({ error: 'Song stream not found' });
     }
 
     // Download binary audio buffer and send back with CORS headers
