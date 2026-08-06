@@ -200,16 +200,20 @@ router.get('/download/:youtubeId', async (req, res) => {
       unlinkSync(outputFile);
     }
 
-    // Use yt-dlp-exec with Android player client to avoid 403 Forbidden errors
-    await ytDlpExec(videoUrl, {
-      binaryPath: '/usr/local/bin/yt-dlp',
-      format: 'bestaudio',
-      output: outputFile,
-      noPlaylist: true,
-      noWarnings: true,
-      noCheckCertificates: true,
-      extractorArgs: 'youtube:player_client=ios,web_creator',
-    } as any);
+    // Execute system yt-dlp binary directly
+    const { execFile } = await import('child_process');
+    const { promisify } = await import('util');
+    const execFilePromise = promisify(execFile);
+
+    await execFilePromise('/usr/local/bin/yt-dlp', [
+      videoUrl,
+      '--format', 'bestaudio',
+      '--output', outputFile,
+      '--no-playlist',
+      '--no-warnings',
+      '--no-check-certificates',
+      '--extractor-args', 'youtube:player_client=ios,web_creator',
+    ]);
 
     if (!existsSync(outputFile)) {
       console.error(`[DOWNLOAD] File not created for: ${youtubeId}`);
