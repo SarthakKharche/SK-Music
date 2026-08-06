@@ -145,72 +145,38 @@ router.get('/download/:youtubeId', async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Headers', '*');
     
-    const { spawn } = await import('child_process');
     const axios = (await import('axios')).default;
 
-    // 1. Try yt-dlp via local path, system command, or python3 module
-    const ytCommands = [
-      { cmd: '/home/ubuntu/.local/bin/yt-dlp', args: ['-f', 'ba/b[ext=m4a]/b', '--no-playlist', '--no-warnings', '-o', '-', `https://www.youtube.com/watch?v=${youtubeId}`] },
-      { cmd: 'yt-dlp', args: ['-f', 'ba/b[ext=m4a]/b', '--no-playlist', '--no-warnings', '-o', '-', `https://www.youtube.com/watch?v=${youtubeId}`] },
-      { cmd: 'python3', args: ['-m', 'yt_dlp', '-f', 'ba/b[ext=m4a]/b', '--no-playlist', '--no-warnings', '-o', '-', `https://www.youtube.com/watch?v=${youtubeId}`] },
+    const cdnUrls = [
+      `https://inv.tux.pizza/latest_version?id=${youtubeId}&itag=140`,
+      `https://invidious.nerdvpn.de/latest_version?id=${youtubeId}&itag=140`,
+      `https://yewtu.be/latest_version?id=${youtubeId}&itag=140`,
     ];
 
-    for (const item of ytCommands) {
+    for (const cdnUrl of cdnUrls) {
       try {
-        const ytdlp = spawn(item.cmd, item.args);
-        let headersSent = false;
-
-        ytdlp.stdout.on('data', (chunk) => {
-          if (!headersSent) {
-            headersSent = true;
-            res.setHeader('Content-Type', 'audio/mp4');
-            res.setHeader('X-Audio-Format', 'mp4');
-          }
-          res.write(chunk);
+        console.log(`[DOWNLOAD] Fetching audio from CDN: ${cdnUrl}`);
+        const streamRes = await axios.get(cdnUrl, {
+          responseType: 'stream',
+          timeout: 10000,
+          maxRedirects: 5,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          },
         });
 
-        ytdlp.stdout.on('end', () => {
-          if (headersSent) {
-            res.end();
-          }
-        });
-
-        ytdlp.on('error', (err) => {
-          console.warn(`[DOWNLOAD] Command ${item.cmd} error:`, err.message);
-        });
-
-        // Wait up to 10 seconds for stdout chunks to begin
-        const startTime = Date.now();
-        while (Date.now() - startTime < 10000) {
-          if (headersSent) {
-            return;
-          }
-          await new Promise((r) => setTimeout(r, 200));
-        }
-        ytdlp.kill();
-      } catch (e) {
-        console.warn(`[DOWNLOAD] Spawn failed for ${item.cmd}:`, e);
-      }
-    }
-
-    // 2. Fallback to Cobalt v10 endpoint API
-    try {
-      const cobaltRes = await axios.post(
-        'https://api.cobalt.tools/',
-        { url: `https://www.youtube.com/watch?v=${youtubeId}` },
-        { headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, timeout: 6000 }
-      );
-      if (cobaltRes.data?.url) {
-        const streamRes = await axios.get(cobaltRes.data.url, { responseType: 'stream', timeout: 12000 });
         if (streamRes.status >= 200 && streamRes.status < 300) {
-          res.setHeader('Content-Type', 'audio/mp3');
-          res.setHeader('X-Audio-Format', 'mp3');
+          res.setHeader('Content-Type', 'audio/mp4');
+          res.setHeader('X-Audio-Format', 'mp4');
+          if (streamRes.headers['content-length']) {
+            res.setHeader('Content-Length', streamRes.headers['content-length']);
+          }
           streamRes.data.pipe(res);
           return;
         }
+      } catch (err) {
+        console.warn(`[DOWNLOAD] CDN fetch failed: ${cdnUrl}`);
       }
-    } catch (e) {
-      console.warn('[DOWNLOAD] Cobalt fallback failed:', e);
     }
 
     return res.status(500).json({ error: 'Audio download failed' });
