@@ -150,6 +150,11 @@ class AudioCacheManager {
         throw new Error(`Download error: ${audioResponse.status}`);
       }
 
+      const contentType = audioResponse.headers.get('content-type') || '';
+      if (contentType.includes('application/json') || contentType.includes('text/html')) {
+        throw new Error('Server returned invalid audio stream response');
+      }
+
       // Get metadata from response headers
       const format = audioResponse.headers.get('X-Audio-Format') || 'webm';
       const quality = audioResponse.headers.get('X-Audio-Quality') || 'medium';
@@ -187,8 +192,9 @@ class AudioCacheManager {
         });
       }
 
-      // Create blob from chunks
-      const blob = new Blob(chunks as BlobPart[], { type: `audio/${format}` });
+      // Create valid audio blob from chunks
+      const mimeType = format && format !== 'webm' ? `audio/${format}` : 'audio/mp4';
+      const blob = new Blob(chunks as BlobPart[], { type: mimeType });
 
       // Save to IndexedDB with track metadata
       const cachedAudio: CachedAudio = {
