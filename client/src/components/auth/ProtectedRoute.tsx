@@ -16,7 +16,9 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
     );
   }
 
-  if (!user) {
+  const token = localStorage.getItem('authToken');
+
+  if (!user && !token) {
     return <Navigate to="/login" replace />;
   }
 
