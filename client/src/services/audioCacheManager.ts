@@ -144,9 +144,9 @@ class AudioCacheManager {
       console.log('[OFFLINE] Fetching audio binary stream via CORS proxy:', youtubeId);
       
       const corsProxies = [
-        `https://corsproxy.io/?${encodeURIComponent(`https://yewtu.be/latest_version?id=${youtubeId}&itag=140`)}`,
-        `https://corsproxy.io/?${encodeURIComponent(`https://invidious.nerdvpn.de/latest_version?id=${youtubeId}&itag=140`)}`,
-        `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://yewtu.be/latest_version?id=${youtubeId}&itag=140`)}`,
+        `https://corsproxy.io/?https://yewtu.be/latest_version?id=${youtubeId}&itag=140`,
+        `https://corsproxy.io/?https://invidious.nerdvpn.de/latest_version?id=${youtubeId}&itag=140`,
+        `https://thingproxy.freeboard.io/fetch/https://yewtu.be/latest_version?id=${youtubeId}&itag=140`,
         `${import.meta.env.VITE_API_URL || '/api'}/audio/download/${youtubeId}`,
       ];
 
