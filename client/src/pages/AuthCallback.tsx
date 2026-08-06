@@ -8,26 +8,17 @@ const AuthCallback: React.FC = () => {
   const { login } = useAuth();
 
   useEffect(() => {
-    const handleCallback = async () => {
-      const token = searchParams.get('token');
+    const token = searchParams.get('token');
 
-      if (!token) {
-        console.error('No token in callback URL');
-        navigate('/login', { replace: true });
-        return;
-      }
-
-      try {
-        await login(token);
-        navigate('/', { replace: true });
-      } catch (err) {
-        console.warn('Callback error, navigating home with token stored:', err);
-        navigate('/', { replace: true });
-      }
-    };
-
-    handleCallback();
-  }, [searchParams, login, navigate]);
+    if (token) {
+      localStorage.setItem('authToken', token);
+      login(token).catch(console.warn).finally(() => {
+        window.location.href = '/';
+      });
+    } else {
+      window.location.href = '/login';
+    }
+  }, []);
 
   return (
     <div className="flex items-center justify-center h-screen bg-spotify-black">
