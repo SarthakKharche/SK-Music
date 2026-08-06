@@ -216,10 +216,10 @@ router.get('/youtube/:videoId', isAuthenticated, async (req, res) => {
 });
 
 /**
- * GET /api/audio/stream/:youtubeId
- * Get direct audio stream URL for a YouTube video
+ * GET /api/audio/stream/:trackId
+ * Stream audio for a track directly
  */
-router.get('/stream/:youtubeId', isAuthenticated, async (req, res) => {
+router.get('/stream/:trackId', async (req, res) => {
   try {
     let { youtubeId } = req.params;
     
