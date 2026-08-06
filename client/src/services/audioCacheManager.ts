@@ -85,11 +85,36 @@ class AudioCacheManager {
       return null;
     }
 
-    // Fetch high-speed CORS enabled MP3 audio stream from Cobalt API
+    // Fetch high-speed CORS enabled audio stream from Piped API
     if (source.youtubeId) {
       console.log('Using YouTube source for:', track.name, source.youtubeId);
       localStorage.setItem(`youtube_${track.id}`, source.youtubeId);
       
+      const pipedInstances = [
+        'https://pipedapi.kavin.rocks',
+        'https://api.piped.privacydev.net',
+        'https://pipedapi.mha.fi',
+      ];
+
+      for (const instance of pipedInstances) {
+        try {
+          const pipedRes = await fetch(`${instance}/streams/${source.youtubeId}`);
+          const pipedData = await pipedRes.json();
+          const audioStreams = pipedData?.audioStreams;
+          if (audioStreams && audioStreams.length > 0) {
+            audioStreams.sort((a: any, b: any) => (b.bitrate || 0) - (a.bitrate || 0));
+            const bestAudio = audioStreams[0];
+            if (bestAudio?.url) {
+              console.log('Piped audio stream URL resolved:', bestAudio.url);
+              return bestAudio.url;
+            }
+          }
+        } catch (e) {
+          // Try next Piped mirror
+        }
+      }
+
+      // Cobalt API fallback
       try {
         const cobaltRes = await fetch('https://api.cobalt.tools', {
           method: 'POST',
@@ -99,8 +124,6 @@ class AudioCacheManager {
           },
           body: JSON.stringify({
             url: `https://www.youtube.com/watch?v=${source.youtubeId}`,
-            downloadMode: 'audio',
-            audioFormat: 'mp3',
           }),
         });
         const cobaltData = await cobaltRes.json();
@@ -108,10 +131,9 @@ class AudioCacheManager {
           return cobaltData.url;
         }
       } catch (e) {
-        console.warn('Cobalt stream fetch failed, using fallback:', e);
+        console.warn('Cobalt stream fetch failed:', e);
       }
 
-      // Fallback: Invidious audio stream URL
       return `https://invidious.nerdvpn.de/latest_version?id=${source.youtubeId}&itag=140`;
     }
 
