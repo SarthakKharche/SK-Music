@@ -132,8 +132,8 @@ export class AudioResolverService {
             context: {
               client: {
                 clientName: 'ANDROID',
-                clientVersion: '17.31.35',
-                androidSdkVersion: 30,
+                clientVersion: '19.05.36',
+                androidSdkVersion: 33,
               },
             },
             videoId: youtubeId,
@@ -141,9 +141,9 @@ export class AudioResolverService {
           {
             headers: {
               'Content-Type': 'application/json',
-              'User-Agent': 'com.google.android.apps.youtube.music/5.16.51 (Linux; U; Android 11; GLO-LX3 Build/HUAWEIGLO-LX3; Cronet/102.0.5005.125)',
+              'User-Agent': 'com.google.android.apps.youtube.music/6.41.52 (Linux; U; Android 13; GLO-LX3 Build/HUAWEIGLO-LX3; Cronet/110.0.5481.153)',
             },
-            timeout: 3000,
+            timeout: 5000,
           }
         );
 
