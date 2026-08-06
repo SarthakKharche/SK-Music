@@ -202,6 +202,7 @@ router.get('/download/:youtubeId', async (req, res) => {
 
     // Use yt-dlp-exec with Android player client to avoid 403 Forbidden errors
     await ytDlpExec(videoUrl, {
+      binaryPath: '/usr/local/bin/yt-dlp',
       format: 'bestaudio',
       output: outputFile,
       noPlaylist: true,
