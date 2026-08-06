@@ -1,7 +1,19 @@
+import { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { FiMusic } from 'react-icons/fi';
 import { FcGoogle } from 'react-icons/fc';
+import { useAuth } from '../contexts/AuthContext';
 
 const LoginPage: React.FC = () => {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+
+  useEffect(() => {
+    const token = localStorage.getItem('authToken');
+    if (user || token) {
+      navigate('/', { replace: true });
+    }
+  }, [user, navigate]);
   return (
     <div className="min-h-screen bg-gradient-to-br from-spotify-black via-spotify-dark to-spotify-green flex items-center justify-center p-4">
       <div className="max-w-md w-full bg-spotify-black rounded-2xl shadow-2xl p-8">
