@@ -142,19 +142,40 @@ router.get('/download/:youtubeId', async (req, res) => {
     }
 
     console.log(`[DOWNLOAD] Attempting audio stream for: ${youtubeId}`);
-    try {
-      const directUrlInfo = await audioResolverService.getDirectAudioUrl(youtubeId);
-      if (directUrlInfo?.url) {
-        return res.redirect(directUrlInfo.url);
+    const axios = (await import('axios')).default;
+
+    const streamSources = [
+      `https://invidious.nerdvpn.de/latest_version?id=${youtubeId}&itag=140`,
+      `https://invidious.drgns.space/latest_version?id=${youtubeId}&itag=140`,
+      `https://vid.puffyan.us/latest_version?id=${youtubeId}&itag=140`,
+    ];
+
+    for (const sourceUrl of streamSources) {
+      try {
+        console.log(`[DOWNLOAD] Trying stream source: ${sourceUrl}`);
+        const streamRes = await axios.get(sourceUrl, {
+          responseType: 'stream',
+          timeout: 6000,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          },
+        });
+
+        if (streamRes.status >= 200 && streamRes.status < 300) {
+          res.setHeader('Content-Type', streamRes.headers['content-type'] || 'audio/mp4');
+          res.setHeader('Accept-Ranges', 'bytes');
+          if (streamRes.headers['content-length']) {
+            res.setHeader('Content-Length', streamRes.headers['content-length']);
+          }
+          streamRes.data.pipe(res);
+          return;
+        }
+      } catch (err) {
+        console.warn(`[DOWNLOAD] Source failed: ${sourceUrl}`);
       }
-    } catch (e) {
-      console.warn('[DOWNLOAD] Direct url extraction failed, using CDN fallback:', e);
     }
 
-    // Direct CDN fallback URL (itag 140 is AAC 128kbps audio format)
-    const fallbackCdnUrl = `https://inv.tux.pizza/latest_version?id=${youtubeId}&itag=140`;
-    console.log(`[DOWNLOAD] Redirecting to fallback CDN stream: ${fallbackCdnUrl}`);
-    return res.redirect(fallbackCdnUrl);
+    return res.status(500).json({ error: 'Audio stream failed to load' });
   } catch (error) {
     console.error('[DOWNLOAD] Error:', error instanceof Error ? error.message : error);
     if (!res.headersSent) {
