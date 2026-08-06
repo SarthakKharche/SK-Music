@@ -147,35 +147,73 @@ router.get('/download/:youtubeId', async (req, res) => {
     
     const axios = (await import('axios')).default;
 
-    const streamSources = [
-      `https://invidious.nerdvpn.de/latest_version?id=${youtubeId}&itag=140`,
-      `https://yewtu.be/latest_version?id=${youtubeId}&itag=140`,
-      `https://invidious.jing.rocks/latest_version?id=${youtubeId}&itag=140`,
+    // 1. Resolve direct audio stream URL via Piped API mirrors
+    const pipedInstances = [
+      'https://pipedapi.adminforge.de',
+      'https://pipedapi.kavin.rocks',
+      'https://pipedapi.mha.fi',
     ];
 
-    for (const sourceUrl of streamSources) {
+    let directAudioUrl: string | null = null;
+    for (const instance of pipedInstances) {
       try {
-        console.log(`[DOWNLOAD] Fetching binary audio buffer from: ${sourceUrl}`);
-        const streamRes = await axios.get(sourceUrl, {
-          responseType: 'arraybuffer',
-          timeout: 10000,
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          },
-        });
-
-        if (streamRes.status >= 200 && streamRes.status < 300 && streamRes.data) {
-          const buffer = Buffer.from(streamRes.data);
-          if (buffer.length > 50000) {
-            res.setHeader('Content-Type', 'audio/mp4');
-            res.setHeader('X-Audio-Format', 'mp4');
-            res.setHeader('Content-Length', buffer.length.toString());
-            return res.send(buffer);
+        const pipedRes = await axios.get(`${instance}/streams/${youtubeId}`, { timeout: 4000 });
+        const audioStreams = pipedRes.data?.audioStreams;
+        if (audioStreams && audioStreams.length > 0) {
+          audioStreams.sort((a: any, b: any) => (b.bitrate || 0) - (a.bitrate || 0));
+          if (audioStreams[0]?.url) {
+            directAudioUrl = audioStreams[0].url;
+            console.log(`[DOWNLOAD] Resolved Piped stream URL: ${directAudioUrl.substring(0, 40)}`);
+            break;
           }
         }
-      } catch (err) {
-        console.warn(`[DOWNLOAD] Source failed: ${sourceUrl}`);
+      } catch (e) {
+        // Try next Piped mirror
       }
+    }
+
+    // 2. Cobalt API Fallback
+    if (!directAudioUrl) {
+      try {
+        const cobaltRes = await axios.post(
+          'https://api.cobalt.tools',
+          { url: `https://www.youtube.com/watch?v=${youtubeId}` },
+          { headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, timeout: 5000 }
+        );
+        if (cobaltRes.data?.url) {
+          directAudioUrl = cobaltRes.data.url;
+          console.log(`[DOWNLOAD] Resolved Cobalt stream URL: ${directAudioUrl.substring(0, 40)}`);
+        }
+      } catch (e) {
+        // Cobalt failed
+      }
+    }
+
+    if (!directAudioUrl) {
+      directAudioUrl = `https://invidious.nerdvpn.de/latest_version?id=${youtubeId}&itag=140`;
+    }
+
+    // Stream binary buffer back to client
+    try {
+      const streamRes = await axios.get(directAudioUrl, {
+        responseType: 'arraybuffer',
+        timeout: 12000,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        },
+      });
+
+      if (streamRes.status >= 200 && streamRes.status < 300 && streamRes.data) {
+        const buffer = Buffer.from(streamRes.data);
+        if (buffer.length > 20000) {
+          res.setHeader('Content-Type', 'audio/mp4');
+          res.setHeader('X-Audio-Format', 'mp4');
+          res.setHeader('Content-Length', buffer.length.toString());
+          return res.send(buffer);
+        }
+      }
+    } catch (err) {
+      console.warn(`[DOWNLOAD] Buffer fetch failed: ${err}`);
     }
 
     return res.status(500).json({ error: 'Audio download stream failed' });
