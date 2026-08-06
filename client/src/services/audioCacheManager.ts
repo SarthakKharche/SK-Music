@@ -79,19 +79,18 @@ class AudioCacheManager {
       // If we have a stored YouTube ID as fallback, use it
       if (storedYoutubeId) {
         console.log('Fallback: Using stored YouTube ID for:', track.name);
-        return `https://invidious.nerdvpn.de/latest_version?id=${storedYoutubeId}&itag=140`;
+        return `youtube:${storedYoutubeId}`;
       }
       console.warn('No audio source found for track:', track.name);
       return null;
     }
 
-    // Direct HTML5 Audio Stream URL (Immune to JS fetch CORS restrictions)
+    // Return YouTube video ID formatted for YouTube IFrame Audio Player Engine
     if (source.youtubeId) {
       console.log('Using YouTube source for:', track.name, source.youtubeId);
       localStorage.setItem(`youtube_${track.id}`, source.youtubeId);
       
-      // Yewtu.be & Invidious high-compatibility audio stream endpoint (itag 140 = 128k AAC audio)
-      return `https://yewtu.be/latest_version?id=${source.youtubeId}&itag=140`;
+      return `youtube:${source.youtubeId}`;
     }
 
     // For direct audio URLs, cache in background
