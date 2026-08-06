@@ -153,6 +153,8 @@ class AudioCacheManager {
           },
           body: JSON.stringify({
             url: `https://www.youtube.com/watch?v=${youtubeId}`,
+            downloadMode: 'audio',
+            audioFormat: 'mp3',
           }),
         });
         const cobaltData = await cobaltRes.json();
