@@ -17,11 +17,11 @@ const clientUrl = process.env.CLIENT_URL || (process.env.CLIENT_URLS ? process.e
  */
 router.get(
   '/google',
-  authRateLimiter,
   passport.authenticate('google', {
     scope: ['profile', 'email', 'https://www.googleapis.com/auth/youtube'],
     accessType: 'offline',
     prompt: 'consent',
+    session: false,
   })
 );
 
@@ -31,7 +31,7 @@ router.get(
  */
 router.get(
   '/google/callback',
-  passport.authenticate('google', { failureRedirect: `${clientUrl}/login` }),
+  passport.authenticate('google', { failureRedirect: `${clientUrl}/login`, session: false }),
   (req, res) => {
     const user = req.user as User;
     
