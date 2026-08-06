@@ -6,15 +6,6 @@ const LoginPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const getAuthUrl = (): string => {
-    const apiUrl = import.meta.env.VITE_API_URL;
-    if (apiUrl) {
-      const base = apiUrl.replace(/\/$/, '');
-      return base.endsWith('/api') ? `${base}/auth/google` : `${base}/api/auth/google`;
-    }
-    return '/api/auth/google';
-  };
-
   const handleGoogleLogin = () => {
     setLoading(true);
     setError(null);
