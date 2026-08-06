@@ -162,8 +162,9 @@ router.get('/download/:youtubeId', async (req, res) => {
         if (audioStreams && audioStreams.length > 0) {
           audioStreams.sort((a: any, b: any) => (b.bitrate || 0) - (a.bitrate || 0));
           if (audioStreams[0]?.url) {
-            directAudioUrl = audioStreams[0].url;
-            console.log(`[DOWNLOAD] Resolved Piped stream URL: ${directAudioUrl.substring(0, 40)}`);
+            const resolvedUrl: string = audioStreams[0].url;
+            directAudioUrl = resolvedUrl;
+            console.log(`[DOWNLOAD] Resolved Piped stream URL: ${resolvedUrl.substring(0, 40)}`);
             break;
           }
         }
@@ -181,8 +182,9 @@ router.get('/download/:youtubeId', async (req, res) => {
           { headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, timeout: 5000 }
         );
         if (cobaltRes.data?.url) {
-          directAudioUrl = cobaltRes.data.url;
-          console.log(`[DOWNLOAD] Resolved Cobalt stream URL: ${directAudioUrl.substring(0, 40)}`);
+          const cobaltUrl: string = cobaltRes.data.url;
+          directAudioUrl = cobaltUrl;
+          console.log(`[DOWNLOAD] Resolved Cobalt stream URL: ${cobaltUrl.substring(0, 40)}`);
         }
       } catch (e) {
         // Cobalt failed
