@@ -56,23 +56,33 @@ router.get('/saavn-search', async (req, res) => {
       }
     }
 
-    // 2. If Saavn search misses (e.g. YouTube Remixes), fallback to Cobalt API stream
+    // 2. If Saavn search misses (e.g. YouTube Remixes), resolve audio stream via Piped API backend
     if (!directMp3Url) {
       const trackId = req.query.trackId as string || rawQuery;
       const youtubeId = trackId.startsWith('yt-') ? trackId.replace('yt-', '') : trackId;
-      console.log(`[DOWNLOAD] Saavn search missed, trying Cobalt fallback for YouTube ID: ${youtubeId}`);
+      console.log(`[DOWNLOAD] Saavn search missed, trying Piped API fallback for YouTube ID: ${youtubeId}`);
       
-      try {
-        const cobaltRes = await axios.post(
-          'https://api.cobalt.tools',
-          { url: `https://www.youtube.com/watch?v=${youtubeId}`, downloadMode: 'audio' },
-          { headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, timeout: 6000 }
-        );
-        if (cobaltRes.data?.url) {
-          directMp3Url = cobaltRes.data.url;
+      const pipedInstances = [
+        'https://pipedapi.adminforge.de',
+        'https://pipedapi.kavin.rocks',
+        'https://pipedapi.tokhmi.xyz',
+      ];
+
+      for (const instance of pipedInstances) {
+        try {
+          const pipedRes = await axios.get(`${instance}/streams/${youtubeId}`, { timeout: 5000 });
+          const audioStreams = pipedRes.data?.audioStreams;
+          if (audioStreams && audioStreams.length > 0) {
+            audioStreams.sort((a: any, b: any) => (b.bitrate || 0) - (a.bitrate || 0));
+            if (audioStreams[0]?.url) {
+              directMp3Url = audioStreams[0].url;
+              console.log(`[DOWNLOAD] Resolved Piped stream URL on EC2`);
+              break;
+            }
+          }
+        } catch (e) {
+          // Try next Piped mirror
         }
-      } catch (e) {
-        console.warn('[DOWNLOAD] Cobalt fallback failed:', e);
       }
     }
 
