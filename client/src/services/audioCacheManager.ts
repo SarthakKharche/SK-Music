@@ -136,7 +136,9 @@ class AudioCacheManager {
    * Download audio from JioSaavn CDN directly in browser
    */
   private async _downloadFromYouTube(track: Track): Promise<CachedAudio> {
-    const query = encodeURIComponent(`${track.name} ${track.artists?.[0]?.name || ''}`);
+    // Strip parentheses, quotes, and special characters for clean search
+    const cleanTitle = track.name.replace(/[\(\)\[\]"'\-_]/g, ' ').replace(/\s+/g, ' ').trim();
+    const query = encodeURIComponent(`${cleanTitle} ${track.artists?.[0]?.name || ''}`);
 
     this.notifySyncStatus({
       trackId: track.id,
@@ -144,25 +146,36 @@ class AudioCacheManager {
       progress: 10,
     });
 
-    console.log('[OFFLINE] Fetching audio binary for:', track.name);
+    console.log('[OFFLINE] Fetching audio binary for:', cleanTitle);
 
     let audioBlobUrl: string | null = null;
 
-    try {
-      const saavnRes = await fetch(`https://saavn.dev/api/search/songs?query=${query}`);
-      if (saavnRes.ok) {
-        const saavnData = await saavnRes.json();
-        const songs = saavnData?.data?.results;
-        if (songs && songs.length > 0 && songs[0].downloadUrl) {
-          const downloadUrls = songs[0].downloadUrl;
-          const highestQual = downloadUrls[downloadUrls.length - 1]?.url || downloadUrls[0]?.url;
-          if (highestQual) {
-            audioBlobUrl = highestQual;
+    // 1. Try active JioSaavn API mirrors
+    const saavnEndpoints = [
+      `https://saavn.me/api/search/songs?query=${query}`,
+      `https://jiosaavn-api-private-us.vercel.app/search/songs?query=${query}`,
+      `https://saavn.dev/api/search/songs?query=${query}`,
+    ];
+
+    for (const endpoint of saavnEndpoints) {
+      try {
+        const saavnRes = await fetch(endpoint);
+        if (saavnRes.ok) {
+          const saavnData = await saavnRes.json();
+          const songs = saavnData?.data?.results || saavnData?.results;
+          if (songs && songs.length > 0 && songs[0].downloadUrl) {
+            const downloadUrls = songs[0].downloadUrl;
+            const highestQual = downloadUrls[downloadUrls.length - 1]?.url || downloadUrls[0]?.url;
+            if (highestQual) {
+              audioBlobUrl = highestQual;
+              console.log('[OFFLINE] Resolved JioSaavn CDN audio URL from:', endpoint);
+              break;
+            }
           }
         }
+      } catch (e) {
+        // Try next Saavn endpoint
       }
-    } catch (e) {
-      console.warn('Saavn stream resolution error:', e);
     }
 
     if (!audioBlobUrl) {
