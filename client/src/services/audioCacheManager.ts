@@ -133,7 +133,9 @@ class AudioCacheManager {
   /**
    * Download audio from YouTube via server (proxied to avoid CORS)
    */
-  private async _downloadFromYouTube(track: Track, youtubeId: string): Promise<void> {
+  private async _downloadFromYouTube(track: Track): Promise<CachedAudio> {
+    const youtubeId = (track as any).youtubeId || track.id;
+
     try {
       this.notifySyncStatus({
         trackId: track.id,
@@ -141,32 +143,32 @@ class AudioCacheManager {
         progress: 0,
       });
 
-      console.log('[OFFLINE] Resolving audio stream URL for:', youtubeId);
+      console.log('[OFFLINE] Fetching audio binary for:', track.name);
       
       let audioBlobUrl: string | null = null;
 
-      const pipedInstances = [
-        'https://pipedapi.kavin.rocks',
-        'https://pipedapi.adminforge.de',
-        'https://pipedapi.tokhmi.xyz',
-        'https://piped-api.garudalinux.org',
-      ];
-
-      for (const instance of pipedInstances) {
-        try {
-          const res = await fetch(`${instance}/streams/${youtubeId}`);
-          if (res.ok) {
-            const data = await res.json();
-            if (data?.audioStreams?.length > 0) {
-              audioBlobUrl = data.audioStreams[0].url;
-              break;
+      // 1. Search JioSaavn API for direct 320kbps MP3 CDN stream
+      try {
+        const query = encodeURIComponent(`${track.name} ${track.artists[0]?.name}`);
+        const saavnRes = await fetch(`https://saavn.dev/api/search/songs?query=${query}`);
+        if (saavnRes.ok) {
+          const saavnData = await saavnRes.json();
+          const songs = saavnData?.data?.results;
+          if (songs && songs.length > 0 && songs[0].downloadUrl) {
+            const downloadUrls = songs[0].downloadUrl;
+            // Get highest quality URL
+            const highestQual = downloadUrls[downloadUrls.length - 1]?.url || downloadUrls[0]?.url;
+            if (highestQual) {
+              audioBlobUrl = highestQual;
+              console.log('[OFFLINE] Resolved JioSaavn CDN audio URL');
             }
           }
-        } catch {
-          // Try next Piped instance
         }
+      } catch (e) {
+        console.warn('Saavn stream resolution error:', e);
       }
 
+      // 2. Fallback to server endpoint
       if (!audioBlobUrl) {
         audioBlobUrl = `${import.meta.env.VITE_API_URL || '/api'}/audio/download/${youtubeId}`;
       }
