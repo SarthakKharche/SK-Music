@@ -143,7 +143,16 @@ class AudioCacheManager {
 
       console.log('[OFFLINE] Fetching audio binary via EC2 download proxy:', youtubeId);
       
-      const audioResponse = await fetch(`/api/audio/download/${youtubeId}`);
+      const token = localStorage.getItem('authToken');
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const audioResponse = await fetch(`/api/audio/download/${youtubeId}`, {
+        headers,
+        credentials: 'include',
+      });
 
       if (!audioResponse.ok) {
         throw new Error(`Audio download failed: ${audioResponse.status}`);

@@ -145,8 +145,23 @@ router.get('/download/:youtubeId', async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Headers', '*');
     
+    const play = await import('play-dl');
     const axios = (await import('axios')).default;
 
+    // 1. Try play.dl stream
+    try {
+      const stream = await play.stream(`https://www.youtube.com/watch?v=${youtubeId}`, { quality: 2 });
+      if (stream?.stream) {
+        res.setHeader('Content-Type', stream.type || 'audio/webm');
+        res.setHeader('X-Audio-Format', stream.type?.includes('mp4') ? 'mp4' : 'webm');
+        stream.stream.pipe(res);
+        return;
+      }
+    } catch (playErr) {
+      console.warn('[DOWNLOAD] play-dl stream failed:', playErr);
+    }
+
+    // 2. Invidious CDN Fallback
     const cdnUrls = [
       `https://inv.tux.pizza/latest_version?id=${youtubeId}&itag=140`,
       `https://invidious.nerdvpn.de/latest_version?id=${youtubeId}&itag=140`,
@@ -158,7 +173,7 @@ router.get('/download/:youtubeId', async (req, res) => {
         console.log(`[DOWNLOAD] Fetching audio from CDN: ${cdnUrl}`);
         const streamRes = await axios.get(cdnUrl, {
           responseType: 'stream',
-          timeout: 10000,
+          timeout: 12000,
           maxRedirects: 5,
           headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
