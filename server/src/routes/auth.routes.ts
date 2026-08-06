@@ -30,17 +30,18 @@ router.get(
  */
 router.get(
   '/google/callback',
-  passport.authenticate('google', { failureRedirect: `${clientUrl}/login`, session: false }),
+  (req, res, next) => {
+    const targetClient = process.env.CLIENT_URL || 'https://sk-music-xi.vercel.app';
+    passport.authenticate('google', { failureRedirect: `${targetClient}/login`, session: false })(req, res, next);
+  },
   (req, res) => {
-    const user = req.user as User;
-    
-    const token = jwt.sign(
-      { uid: user.uid, email: user.email },
-      process.env.JWT_SECRET!,
-      { expiresIn: '30d' }
-    );
+    // Dynamically determine target client URL
+    const targetClient = 
+      req.headers.referer?.startsWith('https://sk-music-xi.vercel.app') ? 'https://sk-music-xi.vercel.app' :
+      (process.env.CLIENT_URL || 'https://sk-music-xi.vercel.app');
 
-    res.redirect(`${clientUrl}/auth/callback?token=${token}`);
+    console.log(`[AUTH CALLBACK] Redirecting to: ${targetClient}/auth/callback`);
+    res.redirect(`${targetClient}/auth/callback?token=${token}`);
   }
 );
 
