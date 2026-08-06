@@ -74,8 +74,6 @@ class AudioCacheManager {
 
     // Resolve audio source from YouTube (online only)
     const source = await this.resolveAudioSource(track);
-    
-    const streamUrlPrefix = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
     if (!source) {
       // If we have a stored YouTube ID as fallback, use it
