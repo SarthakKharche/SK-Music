@@ -56,28 +56,37 @@ router.get('/saavn-search', async (req, res) => {
       }
     }
 
+    // 2. If Saavn search misses (e.g. YouTube Remixes), fallback to YouTube Invidious CDN stream
     if (!directMp3Url) {
-      return res.status(404).json({ error: 'Song stream not found' });
+      const trackId = req.query.trackId as string || rawQuery;
+      const youtubeId = trackId.startsWith('yt-') ? trackId.replace('yt-', '') : trackId;
+      console.log(`[DOWNLOAD] Saavn search missed, trying Invidious fallback for YouTube ID: ${youtubeId}`);
+      directMp3Url = `https://invidious.nerdvpn.de/latest_version?id=${youtubeId}&itag=140`;
     }
 
     // Download binary audio buffer and send back with CORS headers
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Headers', '*');
     
-    const audioStreamRes = await axios.get(directMp3Url, {
-      responseType: 'arraybuffer',
-      timeout: 10000,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      },
-    });
+    try {
+      const audioStreamRes = await axios.get(directMp3Url, {
+        responseType: 'arraybuffer',
+        timeout: 12000,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        },
+      });
 
-    if (audioStreamRes.status >= 200 && audioStreamRes.status < 300 && audioStreamRes.data) {
-      const buffer = Buffer.from(audioStreamRes.data);
-      res.setHeader('Content-Type', 'audio/mp3');
-      res.setHeader('X-Audio-Format', 'mp3');
-      res.setHeader('Content-Length', buffer.length.toString());
-      return res.send(buffer);
+      if (audioStreamRes.status >= 200 && audioStreamRes.status < 300 && audioStreamRes.data) {
+        const buffer = Buffer.from(audioStreamRes.data);
+        res.setHeader('Content-Type', 'audio/mp4');
+        res.setHeader('X-Audio-Format', 'mp4');
+        res.setHeader('Content-Length', buffer.length.toString());
+        return res.send(buffer);
+      }
+    } catch (e) {
+      // Direct stream fallback
+      console.warn('[DOWNLOAD] Direct stream fetch failed:', e);
     }
 
     return res.status(500).json({ error: 'Failed to fetch audio stream buffer' });

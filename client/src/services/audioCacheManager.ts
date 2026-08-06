@@ -149,7 +149,7 @@ class AudioCacheManager {
     console.log('[OFFLINE] Fetching audio binary for:', cleanTitle);
 
     try {
-      const audioResponse = await fetch(`/api/audio/saavn-search?query=${query}`);
+      const audioResponse = await fetch(`/api/audio/saavn-search?query=${query}&trackId=${track.id}`);
       if (!audioResponse.ok) {
         throw new Error(`Audio download failed: ${audioResponse.status}`);
       }
