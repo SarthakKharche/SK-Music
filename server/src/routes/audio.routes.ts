@@ -179,10 +179,13 @@ router.get('/download/:youtubeId', async (req, res) => {
           console.warn(`[DOWNLOAD] Command ${item.cmd} error:`, err.message);
         });
 
-        // Give process 2 seconds to start producing stdout chunks
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-        if (headersSent) {
-          return;
+        // Wait up to 10 seconds for stdout chunks to begin
+        const startTime = Date.now();
+        while (Date.now() - startTime < 10000) {
+          if (headersSent) {
+            return;
+          }
+          await new Promise((r) => setTimeout(r, 200));
         }
         ytdlp.kill();
       } catch (e) {
