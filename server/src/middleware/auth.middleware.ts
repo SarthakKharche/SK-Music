@@ -51,12 +51,32 @@ export const isAuthenticated = async (
       const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { uid: string; email: string };
 
       // Hydrate full user from Firestore so spotifyConnected etc. are available
-      const db = getFirestore();
-      const userDoc = await db.collection('users').doc(decoded.uid).get();
-      if (userDoc.exists) {
-        req.user = userDoc.data() as Express.User;
-      } else {
-        req.user = decoded as any;
+      try {
+        const db = getFirestore();
+        const userDoc = await db.collection('users').doc(decoded.uid).get();
+        if (userDoc.exists) {
+          req.user = userDoc.data() as Express.User;
+        } else {
+          req.user = {
+            uid: decoded.uid,
+            email: decoded.email,
+            name: decoded.email ? decoded.email.split('@')[0] : 'User',
+            provider: 'google',
+            spotifyConnected: false,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+        }
+      } catch (dbError) {
+        req.user = {
+          uid: decoded.uid,
+          email: decoded.email,
+          name: decoded.email ? decoded.email.split('@')[0] : 'User',
+          provider: 'google',
+          spotifyConnected: false,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
       }
 
       return next();
