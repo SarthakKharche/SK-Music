@@ -85,56 +85,37 @@ class AudioCacheManager {
       return null;
     }
 
-    // Fetch high-speed CORS enabled audio stream from Piped API
+    // High reliability YouTube audio stream instances
     if (source.youtubeId) {
       console.log('Using YouTube source for:', track.name, source.youtubeId);
       localStorage.setItem(`youtube_${track.id}`, source.youtubeId);
       
-      const pipedInstances = [
-        'https://pipedapi.kavin.rocks',
-        'https://api.piped.privacydev.net',
-        'https://pipedapi.mha.fi',
+      const streamMirrors = [
+        `https://piped-api.garudalinux.org/streams/${source.youtubeId}`,
+        `https://api.piped.projectsegfau.lt/streams/${source.youtubeId}`,
+        `https://piped-api.lunar.icu/streams/${source.youtubeId}`,
       ];
 
-      for (const instance of pipedInstances) {
+      for (const instanceUrl of streamMirrors) {
         try {
-          const pipedRes = await fetch(`${instance}/streams/${source.youtubeId}`);
-          const pipedData = await pipedRes.json();
-          const audioStreams = pipedData?.audioStreams;
+          const res = await fetch(instanceUrl);
+          const data = await res.json();
+          const audioStreams = data?.audioStreams;
           if (audioStreams && audioStreams.length > 0) {
             audioStreams.sort((a: any, b: any) => (b.bitrate || 0) - (a.bitrate || 0));
             const bestAudio = audioStreams[0];
             if (bestAudio?.url) {
-              console.log('Piped audio stream URL resolved:', bestAudio.url);
+              console.log('Resolved clean audio stream URL:', bestAudio.url);
               return bestAudio.url;
             }
           }
         } catch (e) {
-          // Try next Piped mirror
+          // Try next mirror
         }
       }
 
-      // Cobalt API fallback
-      try {
-        const cobaltRes = await fetch('https://api.cobalt.tools', {
-          method: 'POST',
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            url: `https://www.youtube.com/watch?v=${source.youtubeId}`,
-          }),
-        });
-        const cobaltData = await cobaltRes.json();
-        if (cobaltData?.url) {
-          return cobaltData.url;
-        }
-      } catch (e) {
-        console.warn('Cobalt stream fetch failed:', e);
-      }
-
-      return `https://invidious.nerdvpn.de/latest_version?id=${source.youtubeId}&itag=140`;
+      // Final fallback to Invidious audio proxy
+      return `https://invidious.jing.rocks/latest_version?id=${source.youtubeId}&itag=140`;
     }
 
     // For direct audio URLs, cache in background
