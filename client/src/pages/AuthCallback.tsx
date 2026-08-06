@@ -6,7 +6,6 @@ const AuthCallback: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { login } = useAuth();
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const handleCallback = async () => {
@@ -33,17 +32,8 @@ const AuthCallback: React.FC = () => {
   return (
     <div className="flex items-center justify-center h-screen bg-spotify-black">
       <div className="text-center">
-        {error ? (
-          <>
-            <p className="text-red-400 mb-2">{error}</p>
-            <p className="text-spotify-lightgray text-sm">Redirecting to login...</p>
-          </>
-        ) : (
-          <>
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-spotify-green mx-auto mb-4"></div>
-            <p className="text-spotify-lightgray">Logging you in...</p>
-          </>
-        )}
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-spotify-green mx-auto mb-4"></div>
+        <p className="text-spotify-lightgray">Logging you in...</p>
       </div>
     </div>
   );
