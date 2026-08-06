@@ -30,7 +30,7 @@ router.get(
 router.get(
   '/google/callback',
   (req, res, next) => {
-    const targetClient = process.env.CLIENT_URL || 'https://sk-music-xi.vercel.app';
+    const targetClient = (process.env.CLIENT_URL || 'https://sk-music-xi.vercel.app').replace(/\/+$/, '');
     passport.authenticate('google', { failureRedirect: `${targetClient}/login`, session: false })(req, res, next);
   },
   (req, res) => {
@@ -42,8 +42,8 @@ router.get(
       { expiresIn: '30d' }
     );
 
-    // Dynamically determine target client URL
-    const targetClient = process.env.CLIENT_URL || 'https://sk-music-xi.vercel.app';
+    // Dynamically determine target client URL without trailing slash
+    const targetClient = (process.env.CLIENT_URL || 'https://sk-music-xi.vercel.app').replace(/\/+$/, '');
 
     console.log(`[AUTH CALLBACK] Redirecting to: ${targetClient}/auth/callback`);
     res.redirect(`${targetClient}/auth/callback?token=${token}`);
