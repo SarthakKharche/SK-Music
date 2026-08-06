@@ -209,7 +209,7 @@ class IndexedDBManager {
    * Cache audio blob
    */
   async cacheAudio(cachedAudio: CachedAudio): Promise<void> {
-    const db = this.getDB();
+    const db = await this.getDBSafe();
     await db.put('audio', cachedAudio);
   }
 
@@ -250,7 +250,7 @@ class IndexedDBManager {
    * Delete cached audio
    */
   async deleteCachedAudio(trackId: string): Promise<void> {
-    const db = this.getDB();
+    const db = await this.getDBSafe();
     await db.delete('audio', trackId);
   }
 
@@ -258,7 +258,7 @@ class IndexedDBManager {
    * Get total cache size
    */
   async getCacheSize(): Promise<number> {
-    const db = this.getDB();
+    const db = await this.getDBSafe();
     const allAudio = await db.getAll('audio');
     return allAudio.reduce((total, audio) => total + audio.sizeBytes, 0);
   }
@@ -267,7 +267,7 @@ class IndexedDBManager {
    * Get all cached audio
    */
   async getAllCachedAudio(): Promise<CachedAudio[]> {
-    const db = this.getDB();
+    const db = await this.getDBSafe();
     return db.getAll('audio');
   }
 
@@ -275,7 +275,7 @@ class IndexedDBManager {
    * Clear old cache (LRU eviction)
    */
   async clearOldCache(maxSizeBytes: number): Promise<void> {
-    const db = this.getDB();
+    const db = await this.getDBSafe();
     const allAudio = await db.getAllFromIndex('audio', 'by-accessed');
     
     let totalSize = allAudio.reduce((sum, audio) => sum + audio.sizeBytes, 0);
@@ -293,7 +293,7 @@ class IndexedDBManager {
    * Clear all cached audio
    */
   async clearAllCache(): Promise<void> {
-    const db = this.getDB();
+    const db = await this.getDBSafe();
     await db.clear('audio');
   }
 
@@ -448,7 +448,7 @@ class IndexedDBManager {
    * Returns tracks with their metadata from either the cached audio or listening history
    */
   async getOfflineTracks(): Promise<Track[]> {
-    const db = this.getDB();
+    const db = await this.getDBSafe();
     const cachedAudio = await db.getAll('audio');
     
     if (cachedAudio.length === 0) {
