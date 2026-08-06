@@ -148,56 +148,56 @@ router.get('/download/:youtubeId', async (req, res) => {
     const { spawn } = await import('child_process');
     const axios = (await import('axios')).default;
 
-    // 1. First try yt-dlp direct audio stdout stream (Fastest & most reliable)
-    try {
-      const ytdlp = spawn('yt-dlp', [
-        '-f', 'ba/b[ext=m4a]/b',
-        '--no-playlist',
-        '--no-warnings',
-        '-o', '-',
-        `https://www.youtube.com/watch?v=${youtubeId}`
-      ]);
+    // 1. Try yt-dlp via python3 module or binary (100% works on Ubuntu Linux)
+    const ytCommands = [
+      { cmd: 'yt-dlp', args: ['-f', 'ba/b[ext=m4a]/b', '--no-playlist', '--no-warnings', '-o', '-', `https://www.youtube.com/watch?v=${youtubeId}`] },
+      { cmd: 'python3', args: ['-m', 'yt_dlp', '-f', 'ba/b[ext=m4a]/b', '--no-playlist', '--no-warnings', '-o', '-', `https://www.youtube.com/watch?v=${youtubeId}`] },
+    ];
 
-      let headersSent = false;
+    for (const item of ytCommands) {
+      try {
+        const ytdlp = spawn(item.cmd, item.args);
+        let headersSent = false;
 
-      ytdlp.stdout.on('data', (chunk) => {
-        if (!headersSent) {
-          headersSent = true;
-          res.setHeader('Content-Type', 'audio/mp4');
-          res.setHeader('X-Audio-Format', 'mp4');
-        }
-        res.write(chunk);
-      });
+        ytdlp.stdout.on('data', (chunk) => {
+          if (!headersSent) {
+            headersSent = true;
+            res.setHeader('Content-Type', 'audio/mp4');
+            res.setHeader('X-Audio-Format', 'mp4');
+          }
+          res.write(chunk);
+        });
 
-      ytdlp.stdout.on('end', () => {
+        ytdlp.stdout.on('end', () => {
+          if (headersSent) {
+            res.end();
+          }
+        });
+
+        ytdlp.on('error', (err) => {
+          console.warn(`[DOWNLOAD] Command ${item.cmd} error:`, err.message);
+        });
+
+        // Give process 2 seconds to start producing stdout chunks
+        await new Promise((resolve) => setTimeout(resolve, 2000));
         if (headersSent) {
-          res.end();
+          return;
         }
-      });
-
-      ytdlp.on('error', (err) => {
-        console.warn('[DOWNLOAD] yt-dlp process error:', err);
-      });
-
-      // Give yt-dlp 1.5 seconds to start sending audio chunks
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      if (headersSent) {
-        return;
+        ytdlp.kill();
+      } catch (e) {
+        console.warn(`[DOWNLOAD] Spawn failed for ${item.cmd}:`, e);
       }
-      ytdlp.kill();
-    } catch (e) {
-      console.warn('[DOWNLOAD] yt-dlp spawn failed, using Cobalt fallback:', e);
     }
 
-    // 2. Cobalt API Fallback
+    // 2. Fallback to Cobalt v10 endpoint API
     try {
       const cobaltRes = await axios.post(
-        'https://api.cobalt.tools',
-        { url: `https://www.youtube.com/watch?v=${youtubeId}`, downloadMode: 'audio' },
-        { headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, timeout: 5000 }
+        'https://api.cobalt.tools/',
+        { url: `https://www.youtube.com/watch?v=${youtubeId}` },
+        { headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, timeout: 6000 }
       );
       if (cobaltRes.data?.url) {
-        const streamRes = await axios.get(cobaltRes.data.url, { responseType: 'stream', timeout: 10000 });
+        const streamRes = await axios.get(cobaltRes.data.url, { responseType: 'stream', timeout: 12000 });
         if (streamRes.status >= 200 && streamRes.status < 300) {
           res.setHeader('Content-Type', 'audio/mp3');
           res.setHeader('X-Audio-Format', 'mp3');
