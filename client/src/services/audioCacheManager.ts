@@ -141,28 +141,57 @@ class AudioCacheManager {
         progress: 0,
       });
 
-      console.log('[OFFLINE] Fetching audio stream via Cobalt API:', youtubeId);
+      console.log('[OFFLINE] Resolving audio stream URL for:', youtubeId);
       
       let audioBlobUrl: string | null = null;
-      try {
-        const cobaltRes = await fetch('https://api.cobalt.tools/', {
-          method: 'POST',
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            url: `https://www.youtube.com/watch?v=${youtubeId}`,
-            downloadMode: 'audio',
-            audioFormat: 'mp3',
-          }),
-        });
-        const cobaltData = await cobaltRes.json();
-        if (cobaltData?.url) {
-          audioBlobUrl = cobaltData.url;
+
+      // 1. Try Piped API instances (CORS enabled)
+      const pipedInstances = [
+        'https://pipedapi.adminforge.de',
+        'https://pipedapi.kavin.rocks',
+        'https://pipedapi.mha.fi',
+      ];
+
+      for (const instance of pipedInstances) {
+        try {
+          const res = await fetch(`${instance}/streams/${youtubeId}`);
+          if (res.ok) {
+            const data = await res.json();
+            const audioStreams = data?.audioStreams;
+            if (audioStreams && audioStreams.length > 0) {
+              audioStreams.sort((a: any, b: any) => (b.bitrate || 0) - (a.bitrate || 0));
+              if (audioStreams[0]?.url) {
+                audioBlobUrl = audioStreams[0].url;
+                break;
+              }
+            }
+          }
+        } catch {
+          // Try next Piped mirror
         }
-      } catch (e) {
-        console.warn('Cobalt stream fetch error:', e);
+      }
+
+      // 2. Try Cobalt API fallback
+      if (!audioBlobUrl) {
+        try {
+          const cobaltRes = await fetch('https://api.cobalt.tools/', {
+            method: 'POST',
+            headers: {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              url: `https://www.youtube.com/watch?v=${youtubeId}`,
+              downloadMode: 'audio',
+            }),
+          });
+          const cobaltData = await cobaltRes.json();
+          if (cobaltData?.url) {
+            audioBlobUrl = cobaltData.url;
+          }
+        } catch (e) {
+          console.warn('Cobalt stream fetch error:', e);
+        }
       }
 
       if (!audioBlobUrl) {
