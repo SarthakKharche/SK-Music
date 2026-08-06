@@ -141,12 +141,12 @@ class AudioCacheManager {
         progress: 0,
       });
 
-      console.log('[OFFLINE] Downloading audio stream directly to browser:', youtubeId);
+      console.log('[OFFLINE] Downloading audio stream via CORS proxy:', youtubeId);
       
       const cdnMirrors = [
-        `https://yewtu.be/latest_version?id=${youtubeId}&itag=140`,
-        `https://invidious.jing.rocks/latest_version?id=${youtubeId}&itag=140`,
-        `https://invidious.nerdvpn.de/latest_version?id=${youtubeId}&itag=140`,
+        `https://corsproxy.io/?https://yewtu.be/latest_version?id=${youtubeId}&itag=140`,
+        `https://corsproxy.io/?https://invidious.nerdvpn.de/latest_version?id=${youtubeId}&itag=140`,
+        `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://yewtu.be/latest_version?id=${youtubeId}&itag=140`)}`,
       ];
 
       let audioResponse: Response | null = null;
