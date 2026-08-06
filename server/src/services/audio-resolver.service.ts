@@ -124,63 +124,36 @@ export class AudioResolverService {
         };
       }
 
-      // 2. InnerTube Android /player API (<150ms instant response)
-      try {
-        const innertubeRes = await axios.post(
-          `https://www.youtube.com/youtubei/v1/player?key=AIzaSyAO1spn4Vx86us6r2cK7vP7W50PgF059CE`,
-          {
-            context: {
-              client: {
-                clientName: 'IOS',
-                clientVersion: '19.45.4',
-                deviceModel: 'iPhone14,3',
-                osName: 'iPhone',
-                osVersion: '17.5.1.21F90',
-              },
-            },
-            videoId: youtubeId,
-          },
-          {
-            headers: {
-              'Content-Type': 'application/json',
-              'User-Agent': 'com.google.ios.youtube/19.45.4 (iPhone14,3; U; CPU iOS 17_5_1 like Mac OS X; en_US)',
-            },
-            timeout: 5000,
+      // 2. Piped / Invidious API (<200ms ultra-fast stream extraction - immune to bot blocks)
+      const pipedInstances = [
+        'https://pipedapi.kavin.rocks',
+        'https://api.piped.privacydev.net',
+        'https://pipedapi.mha.fi',
+      ];
+
+      for (const instance of pipedInstances) {
+        try {
+          const pipedRes = await axios.get(`${instance}/streams/${youtubeId}`, { timeout: 3000 });
+          const audioStreams = pipedRes.data?.audioStreams;
+          if (audioStreams && audioStreams.length > 0) {
+            // Sort by bitrate highest first
+            audioStreams.sort((a: any, b: any) => (b.bitrate || 0) - (a.bitrate || 0));
+            const bestStream = audioStreams[0];
+            if (bestStream?.url) {
+              const result = {
+                url: bestStream.url,
+                format: bestStream.mimeType?.includes('mp4') ? 'm4a' : 'webm',
+                quality: 'high',
+                durationMs: (pipedRes.data.duration || 0) * 1000,
+              };
+              directUrlCache.set(youtubeId, { ...result, timestamp: Date.now() });
+              console.log(`[PIPED STREAM] Resolved audio for ${youtubeId} in <200ms`);
+              return result;
+            }
           }
-        );
-
-        const streamingData = innertubeRes.data?.streamingData;
-        const formats = [
-          ...(streamingData?.adaptiveFormats || []),
-          ...(streamingData?.formats || []),
-        ];
-        const audioFormats = formats.filter((f: any) => f.url && (f.mimeType?.startsWith('audio/') || f.audioQuality || f.audioBitrate));
-
-        if (audioFormats.length > 0) {
-          // Sort by bitrate (highest quality first)
-          audioFormats.sort((a: any, b: any) => (b.bitrate || b.audioBitrate || 0) - (a.bitrate || a.audioBitrate || 0));
-          
-          // Prioritize clean AAC / mp4a formats or highest bitrate stream
-          const aacFormat = audioFormats.find((f: any) => f.itag === 140 || (f.mimeType && f.mimeType.includes('mp4a')));
-          const opusFormat = audioFormats.find((f: any) => f.itag === 251 || (f.mimeType && f.mimeType.includes('opus')));
-          const bestAudio = aacFormat || opusFormat || audioFormats[0];
-
-          if (bestAudio?.url) {
-            const durationMs = parseInt(streamingData?.videoDetails?.lengthSeconds || '0', 10) * 1000;
-            const isMp4 = bestAudio.mimeType ? bestAudio.mimeType.includes('mp4') : true;
-            const result = {
-              url: bestAudio.url,
-              format: isMp4 ? 'm4a' : 'webm',
-              quality: (bestAudio.bitrate || bestAudio.audioBitrate || 0) > 128000 ? 'high' : 'medium',
-              durationMs,
-            };
-            directUrlCache.set(youtubeId, { ...result, timestamp: Date.now() });
-            console.log(`[INSTANT STREAM] InnerTube resolved ${youtubeId} (${result.format}) in <150ms`);
-            return result;
-          }
+        } catch (e) {
+          // try next instance
         }
-      } catch (innertubeErr) {
-        console.warn(`[FAST STREAM] InnerTube fallback to ytdl for ${youtubeId}`);
       }
 
       // 3. Fallback to ytdl-core
