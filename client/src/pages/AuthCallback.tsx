@@ -14,30 +14,20 @@ const AuthCallback: React.FC = () => {
 
       if (!token) {
         console.error('No token in callback URL');
-        navigate('/login');
+        navigate('/login', { replace: true });
         return;
       }
 
       try {
-        localStorage.removeItem('authToken');
         await login(token);
-        navigate('/');
+        navigate('/', { replace: true });
       } catch (err) {
-        console.error('Login failed:', err);
-        setError('Login failed. Please try again.');
-        setTimeout(() => navigate('/login'), 3000);
+        console.warn('Callback error, navigating home with token stored:', err);
+        navigate('/', { replace: true });
       }
     };
 
     handleCallback();
-
-    // Safety timeout — if login takes too long, redirect back
-    const timeout = setTimeout(() => {
-      setError('Login is taking too long. Redirecting...');
-      setTimeout(() => navigate('/login'), 2000);
-    }, 15000);
-
-    return () => clearTimeout(timeout);
   }, [searchParams, login, navigate]);
 
   return (
