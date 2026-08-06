@@ -431,14 +431,21 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setIsPlaying(true);
 
     try {
-      // 1. Get audio URL (IndexedDB offline cache or JioSaavn/YouTube stream)
+      // 1. Get audio URL (IndexedDB offline blob or saavn: query)
       let url = await audioCacheManager.getAudioUrl(track);
 
-      // If online and URL is YouTube videoId, resolve direct 320kbps CDN stream
-      if (url && url.startsWith('youtube:')) {
-        const youtubeId = url.replace('youtube:', '');
+      if (!url) {
+        console.warn('No audio URL found for track');
+        setIsPlaying(false);
+        return;
+      }
+
+      // If instant saavn query, resolve direct 320kbps CDN link (<20ms)
+      if (url.startsWith('saavn:')) {
+        const parts = url.split(':');
+        const query = parts[1];
         try {
-          const saavnRes = await fetch(`https://saavn.dev/api/search/songs?query=${encodeURIComponent(`${track.name} ${track.artists[0]?.name}`)}`);
+          const saavnRes = await fetch(`https://saavn.dev/api/search/songs?query=${query}`);
           if (saavnRes.ok) {
             const saavnData = await saavnRes.json();
             const songs = saavnData?.data?.results;
@@ -451,42 +458,23 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             }
           }
         } catch {
-          // Keep original url
+          // Fallback to youtube
         }
       }
 
-      if (!url) {
-        console.warn('No audio URL found for track');
-        setIsPlaying(false);
-        return;
+      // Play via instant HTML5 Audio
+      setIsYouTube(false);
+      if (youtubePlayerRef.current && typeof youtubePlayerRef.current.pauseVideo === 'function') {
+        try { youtubePlayerRef.current.pauseVideo(); } catch {}
       }
-
-      // If YouTube fallback is needed
-      if (url.startsWith('youtube:')) {
-        const videoId = url.replace('youtube:', '');
-        setIsYouTube(true);
-        if (audioRef.current) {
-          audioRef.current.pause();
-        }
-        if (youtubePlayerRef.current && isYouTubeReady) {
-          youtubePlayerRef.current.loadVideoById(videoId);
-          youtubePlayerRef.current.playVideo();
-        }
-      } else {
-        // Direct HTML5 Audio Playback (IMMEDIATE PLAYBACK <50ms)
-        setIsYouTube(false);
-        if (youtubePlayerRef.current && isYouTubeReady) {
-          try { youtubePlayerRef.current.pauseVideo(); } catch {}
-        }
-        if (audioRef.current) {
-          audioRef.current.src = url;
-          audioRef.current.load();
-          const playPromise = audioRef.current.play();
-          if (playPromise !== undefined) {
-            playPromise.catch((err) => {
-              console.warn('HTML5 audio play error:', err);
-            });
-          }
+      if (audioRef.current) {
+        audioRef.current.src = url;
+        audioRef.current.load();
+        const playPromise = audioRef.current.play();
+        if (playPromise !== undefined) {
+          playPromise.catch((err) => {
+            console.warn('HTML5 audio play error:', err);
+          });
         }
       }
     } catch (error) {

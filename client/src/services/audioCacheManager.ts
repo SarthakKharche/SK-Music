@@ -121,6 +121,7 @@ class AudioCacheManager {
     console.log('[OFFLINE] Starting background download for offline:', track.name);
 
     const downloadPromise = this._downloadFromYouTube(track, youtubeId);
+    const downloadPromise = this._downloadFromYouTube(track);
     this.downloadQueue.set(track.id, downloadPromise);
 
     try {
@@ -131,58 +132,33 @@ class AudioCacheManager {
   }
 
   /**
-   * Download audio from YouTube via server (proxied to avoid CORS)
+   * Download audio from JioSaavn CDN directly in browser
    */
   private async _downloadFromYouTube(track: Track): Promise<CachedAudio> {
-    const youtubeId = (track as any).youtubeId || track.id;
+    const query = encodeURIComponent(`${track.name} ${track.artists?.[0]?.name || ''}`);
+
+    this.notifySyncStatus({
+      trackId: track.id,
+      status: 'downloading',
+      progress: 10,
+    });
+
+    console.log('[OFFLINE] Fetching audio binary for:', track.name);
+
+    let audioBlobUrl: string | null = null;
 
     try {
-      this.notifySyncStatus({
-        trackId: track.id,
-        status: 'downloading',
-        progress: 0,
-      });
-
-      console.log('[OFFLINE] Fetching audio binary for:', track.name);
-      
-      let audioBlobUrl: string | null = null;
-
-      // 1. Search JioSaavn API for direct 320kbps MP3 CDN stream
-      try {
-        const query = encodeURIComponent(`${track.name} ${track.artists[0]?.name}`);
-        const saavnRes = await fetch(`https://saavn.dev/api/search/songs?query=${query}`);
-        if (saavnRes.ok) {
-          const saavnData = await saavnRes.json();
-          const songs = saavnData?.data?.results;
-          if (songs && songs.length > 0 && songs[0].downloadUrl) {
-            const downloadUrls = songs[0].downloadUrl;
-            // Get highest quality URL
-            const highestQual = downloadUrls[downloadUrls.length - 1]?.url || downloadUrls[0]?.url;
-            if (highestQual) {
-              audioBlobUrl = highestQual;
-              console.log('[OFFLINE] Resolved JioSaavn CDN audio URL');
-            }
+      const saavnRes = await fetch(`https://saavn.dev/api/search/songs?query=${query}`);
+      if (saavnRes.ok) {
+        const saavnData = await saavnRes.json();
+        const songs = saavnData?.data?.results;
+        if (songs && songs.length > 0 && songs[0].downloadUrl) {
+          const downloadUrls = songs[0].downloadUrl;
+          const highestQual = downloadUrls[downloadUrls.length - 1]?.url || downloadUrls[0]?.url;
+          if (highestQual) {
+            audioBlobUrl = highestQual;
           }
         }
-      } catch (e) {
-        console.warn('Saavn stream resolution error:', e);
-      }
-
-      // 2. Fallback to server endpoint
-      if (!audioBlobUrl) {
-        audioBlobUrl = `${import.meta.env.VITE_API_URL || '/api'}/audio/download/${youtubeId}`;
-      }
-
-      const audioResponse = await fetch(audioBlobUrl);
-
-      if (!audioResponse.ok) {
-        throw new Error(`Audio download failed: ${audioResponse.status}`);
-      }
-
-      // Get metadata from response headers
-      const format = audioResponse.headers.get('X-Audio-Format') || 'webm';
-      const quality = audioResponse.headers.get('X-Audio-Quality') || 'medium';
-      const durationMs = parseInt(audioResponse.headers.get('X-Audio-Duration') || '0') || track.durationMs;
       const contentLength = parseInt(audioResponse.headers.get('content-length') || '0');
 
       console.log('[OFFLINE] Streaming audio from server, format:', format, 'size:', contentLength);
