@@ -30,6 +30,8 @@ router.get('/saavn-search', async (req, res) => {
       `https://saavn.dev/api/search/songs?query=${encodedQuery}`,
     ];
 
+    let directMp3Url: string | null = null;
+
     for (const endpoint of saavnEndpoints) {
       try {
         const apiRes = await axios.get(endpoint, { timeout: 4000 });
@@ -38,7 +40,8 @@ router.get('/saavn-search', async (req, res) => {
           const downloadUrls = songs[0].downloadUrl;
           const highestQual = downloadUrls[downloadUrls.length - 1]?.url || downloadUrls[0]?.url;
           if (highestQual) {
-            return res.json({ url: highestQual, song: songs[0] });
+            directMp3Url = highestQual;
+            break;
           }
         }
       } catch (e) {
@@ -46,7 +49,31 @@ router.get('/saavn-search', async (req, res) => {
       }
     }
 
-    return res.status(404).json({ error: 'Song stream not found' });
+    if (!directMp3Url) {
+      return res.status(404).json({ error: 'Song stream not found' });
+    }
+
+    // Download binary audio buffer and send back with CORS headers
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Headers', '*');
+    
+    const audioStreamRes = await axios.get(directMp3Url, {
+      responseType: 'arraybuffer',
+      timeout: 10000,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      },
+    });
+
+    if (audioStreamRes.status >= 200 && audioStreamRes.status < 300 && audioStreamRes.data) {
+      const buffer = Buffer.from(audioStreamRes.data);
+      res.setHeader('Content-Type', 'audio/mp3');
+      res.setHeader('X-Audio-Format', 'mp3');
+      res.setHeader('Content-Length', buffer.length.toString());
+      return res.send(buffer);
+    }
+
+    return res.status(500).json({ error: 'Failed to fetch audio stream buffer' });
   } catch (error) {
     return res.status(500).json({ error: 'Saavn search failed' });
   }

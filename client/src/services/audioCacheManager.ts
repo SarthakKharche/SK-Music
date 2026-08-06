@@ -148,49 +148,8 @@ class AudioCacheManager {
 
     console.log('[OFFLINE] Fetching audio binary for:', cleanTitle);
 
-    let audioBlobUrl: string | null = null;
-
-    // 1. Try EC2 Saavn resolution endpoint (CORS-free)
     try {
-      const saavnRes = await fetch(`/api/audio/saavn-search?query=${query}`);
-      if (saavnRes.ok) {
-        const saavnData = await saavnRes.json();
-        if (saavnData?.url) {
-          audioBlobUrl = saavnData.url;
-        }
-      }
-    } catch (e) {
-      console.warn('Saavn stream resolution error:', e);
-    }
-
-    // 2. Direct CORS proxy fallback
-    if (!audioBlobUrl) {
-      const corsProxies = [
-        `https://corsproxy.io/?https://saavn.me/api/search/songs?query=${query}`,
-        `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://saavn.me/api/search/songs?query=${query}`)}`,
-      ];
-      for (const proxy of corsProxies) {
-        try {
-          const res = await fetch(proxy);
-          if (res.ok) {
-            const data = await res.json();
-            const songs = data?.data?.results || data?.results;
-            if (songs && songs.length > 0 && songs[0].downloadUrl) {
-              const downloadUrls = songs[0].downloadUrl;
-              audioBlobUrl = downloadUrls[downloadUrls.length - 1]?.url || downloadUrls[0]?.url;
-              if (audioBlobUrl) break;
-            }
-          }
-        } catch {}
-      }
-    }
-
-    if (!audioBlobUrl) {
-      audioBlobUrl = `${import.meta.env.VITE_API_URL || '/api'}/audio/download/${track.id}`;
-    }
-
-    try {
-      const audioResponse = await fetch(audioBlobUrl);
+      const audioResponse = await fetch(`/api/audio/saavn-search?query=${query}`);
       if (!audioResponse.ok) {
         throw new Error(`Audio download failed: ${audioResponse.status}`);
       }
