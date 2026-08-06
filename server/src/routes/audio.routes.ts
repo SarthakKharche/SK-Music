@@ -21,30 +21,83 @@ router.get('/saavn-search', async (req: Request, res: Response) => {
 
     console.log(`[AUDIO DOWNLOAD] Resolving binary stream for ID: ${youtubeId}, Query: ${rawQuery}`);
 
-    // If trackId is not a 11-char YouTube ID, search YouTube for the videoId
-    if (!youtubeId || youtubeId.length !== 11) {
-      const searchRes = await audioResolverService.resolveAudioSources({
-        trackName: rawQuery,
-        artistName: '',
-      });
-      if (searchRes && searchRes.length > 0 && searchRes[0].youtubeId) {
-        youtubeId = searchRes[0].youtubeId;
+    const axios = (await import('axios')).default;
+    let directUrl: string | null = null;
+
+    // 1. Try JioSaavn 320kbps CDN search (Instant 320kbps MP3)
+    const cleanTitle = rawQuery
+      .split(',')[0]
+      .split('&')[0]
+      .replace(/[\(\)\[\]"'\-_]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    const saavnEndpoints = [
+      `https://saavn.me/api/search/songs?query=${encodeURIComponent(cleanTitle)}`,
+      `https://jiosaavn-api-private-us.vercel.app/search/songs?query=${encodeURIComponent(cleanTitle)}`,
+    ];
+
+    for (const endpoint of saavnEndpoints) {
+      try {
+        const saavnRes = await axios.get(endpoint, { timeout: 3500 });
+        const songs = saavnRes.data?.data?.results || saavnRes.data?.results;
+        if (songs && songs.length > 0 && songs[0].downloadUrl) {
+          const downloadUrls = songs[0].downloadUrl;
+          const highestQual = downloadUrls[downloadUrls.length - 1]?.url || downloadUrls[0]?.url;
+          if (highestQual) {
+            directUrl = highestQual;
+            console.log(`[AUDIO DOWNLOAD] Resolved JioSaavn 320kbps CDN stream!`);
+            break;
+          }
+        }
+      } catch (e) {
+        // Try next Saavn mirror
       }
     }
 
-    if (!youtubeId) {
-      return res.status(404).json({ error: 'Track not found' });
+    // 2. If Saavn misses, fallback to AudioResolverService (Cobalt / Invidious / ytdl)
+    if (!directUrl) {
+      if (!youtubeId || youtubeId.length !== 11) {
+        const searchRes = await audioResolverService.resolveAudioSources({
+          trackName: rawQuery,
+          artistName: '',
+        });
+        if (searchRes && searchRes.length > 0 && searchRes[0].youtubeId) {
+          youtubeId = searchRes[0].youtubeId;
+        }
+      }
+
+      if (youtubeId && youtubeId.length === 11) {
+        const streamData = await audioResolverService.getDirectAudioUrl(youtubeId);
+        if (streamData?.url) {
+          directUrl = streamData.url;
+        }
+      }
     }
 
-    const streamData = await audioResolverService.getDirectAudioUrl(youtubeId);
-    if (!streamData?.url) {
+    // 3. Final fallback: Execute yt-dlp on EC2
+    if (!directUrl && youtubeId && youtubeId.length === 11) {
+      try {
+        const { exec } = await import('child_process');
+        const util = await import('util');
+        const execPromise = util.promisify(exec);
+        const { stdout } = await execPromise(`yt-dlp -f bestaudio -g "https://www.youtube.com/watch?v=${youtubeId}"`, { timeout: 8000 });
+        if (stdout && stdout.trim().startsWith('http')) {
+          directUrl = stdout.trim().split('\n')[0];
+        }
+      } catch (e) {
+        console.warn('[AUDIO DOWNLOAD] yt-dlp fallback error:', e);
+      }
+    }
+
+    if (!directUrl) {
       return res.status(404).json({ error: 'Stream URL resolution failed' });
     }
 
-    // Redirect browser directly to audio CDN stream URL
+    // Redirect browser directly to audio stream URL
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Headers', '*');
-    return res.redirect(streamData.url);
+    return res.redirect(directUrl);
   } catch (error) {
     console.error('Audio download error:', error);
     return res.status(500).json({ error: 'Audio download failed' });
