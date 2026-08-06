@@ -1,24 +1,7 @@
-import { useState } from 'react';
 import { FiMusic } from 'react-icons/fi';
 import { FcGoogle } from 'react-icons/fc';
 
 const LoginPage: React.FC = () => {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const handleGoogleLogin = () => {
-    setLoading(true);
-    setError(null);
-    const apiUrl = import.meta.env.VITE_API_URL;
-    let authUrl = '/api/auth/google';
-    if (apiUrl) {
-      const base = apiUrl.replace(/\/$/, '');
-      authUrl = base.endsWith('/api') ? `${base}/auth/google` : `${base}/api/auth/google`;
-    }
-    console.log('Redirecting to:', authUrl);
-    window.location.assign(authUrl);
-  };
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-spotify-black via-spotify-dark to-spotify-green flex items-center justify-center p-4">
       <div className="max-w-md w-full bg-spotify-black rounded-2xl shadow-2xl p-8">
@@ -60,13 +43,6 @@ const LoginPage: React.FC = () => {
           <FcGoogle size={24} />
           <span>Continue with Google</span>
         </a>
-
-        {/* Error message */}
-        {error && (
-          <div className="mt-4 p-3 bg-red-900/50 border border-red-500 rounded-lg text-red-200 text-sm text-center">
-            {error}
-          </div>
-        )}
 
         {/* Legal Notice */}
         <p className="text-xs text-spotify-lightgray text-center mt-6">
