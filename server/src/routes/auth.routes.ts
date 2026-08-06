@@ -2,7 +2,6 @@ import { Router } from 'express';
 import passport from 'passport';
 import jwt from 'jsonwebtoken';
 import { isAuthenticated } from '../middleware/auth.middleware';
-import { authRateLimiter } from '../middleware/rateLimiter';
 import { SpotifyService } from '../services/spotify.service';
 import { getFirestore } from '../config/firebase';
 import type { User } from '../types/user.types';
@@ -125,7 +124,7 @@ router.get('/me', isAuthenticated, async (req, res): Promise<void> => {
       const userDoc = await db.collection('users').doc(user.uid).get();
       if (userDoc.exists) {
         const userData = userDoc.data() as User;
-        return res.json({
+        res.json({
           uid: userData.uid,
           email: userData.email,
           name: userData.name,
@@ -133,6 +132,7 @@ router.get('/me', isAuthenticated, async (req, res): Promise<void> => {
           spotifyConnected: userData.spotifyConnected || false,
           spotifyUserId: userData.spotifyUserId,
         });
+        return;
       }
     } catch (dbErr) {
       console.warn('Firestore fetch failed, returning session user:', dbErr);
