@@ -26,7 +26,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       
       if (token) {
         try {
-          // Add a timeout so we don't hang forever if server is unreachable
           const controller = new AbortController();
           const timeout = setTimeout(() => controller.abort(), 8000);
           
@@ -36,11 +35,30 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           clearTimeout(timeout);
           setUser(response.data);
         } catch (error: any) {
-          console.error('Failed to load user:', error);
-          if (error?.name === 'AbortError' || error?.code === 'ECONNABORTED') {
-            console.warn('Auth check timed out — server may be unreachable');
+          console.warn('Failed to load /auth/me on init, decoding stored token:', error);
+          try {
+            const base64Url = token.split('.')[1];
+            const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+            const jsonPayload = decodeURIComponent(
+              atob(base64)
+                .split('')
+                .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+                .join('')
+            );
+            const decoded = JSON.parse(jsonPayload);
+            setUser({
+              uid: decoded.uid,
+              email: decoded.email,
+              name: decoded.email ? decoded.email.split('@')[0] : 'User',
+              picture: '',
+              provider: 'google',
+              spotifyConnected: false,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            });
+          } catch {
+            localStorage.removeItem('authToken');
           }
-          localStorage.removeItem('authToken');
         }
       }
       
