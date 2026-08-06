@@ -196,6 +196,10 @@ class AudioCacheManager {
       const mimeType = format && format !== 'webm' ? `audio/${format}` : 'audio/mp4';
       const blob = new Blob(chunks as BlobPart[], { type: mimeType });
 
+      if (blob.size < 100000) {
+        throw new Error('Downloaded audio blob is corrupt or incomplete');
+      }
+
       // Save to IndexedDB with track metadata
       const cachedAudio: CachedAudio = {
         trackId: track.id,
