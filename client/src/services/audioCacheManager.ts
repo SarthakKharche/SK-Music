@@ -81,18 +81,19 @@ class AudioCacheManager {
       // If we have a stored YouTube ID as fallback, use it
       if (storedYoutubeId) {
         console.log('Fallback: Using stored YouTube ID for:', track.name);
-        return `${streamUrlPrefix}/audio/download/${storedYoutubeId}`;
+        return `https://inv.tux.pizza/latest_version?id=${storedYoutubeId}&itag=140`;
       }
       console.warn('No audio source found for track:', track.name);
       return null;
     }
 
-    // If it's a YouTube source, return the server's streaming URL
+    // Return high-speed public Invidious CDN audio stream directly to the browser
     if (source.youtubeId) {
       console.log('Using YouTube source for:', track.name, source.youtubeId);
       localStorage.setItem(`youtube_${track.id}`, source.youtubeId);
       
-      return `${streamUrlPrefix}/audio/download/${source.youtubeId}`;
+      // Public Invidious CDN endpoints (itag 140 = clean 128kbps AAC audio)
+      return `https://inv.tux.pizza/latest_version?id=${source.youtubeId}&itag=140`;
     }
 
     // For direct audio URLs, cache in background
