@@ -142,70 +142,52 @@ router.get('/download/:youtubeId', async (req, res) => {
       youtubeId = youtubeId.substring(3);
     }
 
-    console.log(`[DOWNLOAD] Attempting direct audio stream for: ${youtubeId}`);
-    try {
-      const directUrlInfo = await audioResolverService.getDirectAudioUrl(youtubeId);
-      if (directUrlInfo?.url) {
-        console.log(`[DOWNLOAD] Proxying direct CDN stream with Range support for ${youtubeId}`);
-        const rangeHeader = req.headers.range;
-        const headers: Record<string, string> = {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        };
-        if (rangeHeader) {
-          headers['Range'] = rangeHeader;
-        }
-
-        const cdnResponse = await axios.get(directUrlInfo.url, {
-          headers,
-          responseType: 'stream',
-          validateStatus: () => true,
-        });
-
-        if (cdnResponse.status >= 200 && cdnResponse.status < 300) {
-          res.status(cdnResponse.status);
-          if (cdnResponse.headers['content-type']) {
-            res.setHeader('Content-Type', cdnResponse.headers['content-type']);
-          } else {
-            res.setHeader('Content-Type', 'audio/webm');
-          }
-          if (cdnResponse.headers['content-length']) {
-            res.setHeader('Content-Length', cdnResponse.headers['content-length']);
-          }
-          if (cdnResponse.headers['content-range']) {
-            res.setHeader('Content-Range', cdnResponse.headers['content-range']);
-          }
-          res.setHeader('Accept-Ranges', 'bytes');
-          res.setHeader('X-Audio-Format', directUrlInfo.format || 'webm');
-          res.setHeader('X-Audio-Quality', directUrlInfo.quality || 'high');
-
-          cdnResponse.data.pipe(res);
-          return;
-        } else {
-          console.warn(`[DOWNLOAD] CDN URL returned HTTP ${cdnResponse.status}, clearing stale cache for: ${youtubeId}`);
-          audioResolverService.clearStreamCache(youtubeId);
-        }
+    console.log(`[DOWNLOAD] Attempting audio stream for: ${youtubeId}`);
+    const directUrlInfo = await audioResolverService.getDirectAudioUrl(youtubeId);
+    if (directUrlInfo?.url) {
+      console.log(`[DOWNLOAD] Proxying direct CDN stream for ${youtubeId}`);
+      const rangeHeader = req.headers.range;
+      const headers: Record<string, string> = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      };
+      if (rangeHeader) {
+        headers['Range'] = rangeHeader;
       }
-    } catch (directErr) {
-      console.warn('[DOWNLOAD] Direct stream extraction failed, falling back to local download:', directErr);
+
+      const cdnResponse = await axios.get(directUrlInfo.url, {
+        headers,
+        responseType: 'stream',
+        validateStatus: () => true,
+      });
+
+      if (cdnResponse.status >= 200 && cdnResponse.status < 300) {
+        res.status(cdnResponse.status);
+        if (cdnResponse.headers['content-type']) {
+          res.setHeader('Content-Type', cdnResponse.headers['content-type']);
+        } else {
+          res.setHeader('Content-Type', 'audio/webm');
+        }
+        if (cdnResponse.headers['content-length']) {
+          res.setHeader('Content-Length', cdnResponse.headers['content-length']);
+        }
+        if (cdnResponse.headers['content-range']) {
+          res.setHeader('Content-Range', cdnResponse.headers['content-range']);
+        }
+        res.setHeader('Accept-Ranges', 'bytes');
+
+        cdnResponse.data.pipe(res);
+        return;
+      } else if (cdnResponse.status === 302 || cdnResponse.status === 301) {
+        return res.redirect(cdnResponse.headers.location || directUrlInfo.url);
+      }
     }
 
-    console.log(`[DOWNLOAD] Starting audio stream via play-dl for: ${youtubeId}`);
-    const play = await import('play-dl');
-    const stream = await play.stream(`https://www.youtube.com/watch?v=${youtubeId}`, {
-      quality: 2, // High quality audio
-    });
-
-    if (!stream || !stream.stream) {
-      return res.status(500).json({ error: 'Failed to extract stream' });
+    // Fallback: If direct proxy fails, redirect to direct stream URL
+    if (directUrlInfo?.url) {
+      return res.redirect(directUrlInfo.url);
     }
 
-    res.setHeader('Content-Type', stream.type || 'audio/webm');
-    res.setHeader('Accept-Ranges', 'bytes');
-    res.setHeader('X-Audio-Format', 'webm');
-    res.setHeader('X-Audio-Quality', 'high');
-
-    stream.stream.pipe(res);
-    return;
+    return res.status(404).json({ error: 'Audio stream temporarily unavailable' });
   } catch (error) {
     console.error('[DOWNLOAD] Error:', error instanceof Error ? error.message : error);
     if (!res.headersSent) {

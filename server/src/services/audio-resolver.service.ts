@@ -124,35 +124,39 @@ export class AudioResolverService {
         };
       }
 
-      // 2. Piped / Invidious API (<200ms ultra-fast stream extraction - immune to bot blocks)
-      const pipedInstances = [
-        'https://pipedapi.kavin.rocks',
-        'https://api.piped.privacydev.net',
-        'https://pipedapi.mha.fi',
+      // 2. Invidious / Piped CDN APIs (Bypasses AWS IP bot blocks completely)
+      const invidiousInstances = [
+        'https://inv.tux.pizza',
+        'https://invidious.nerdvpn.de',
+        'https://invidious.drgns.space',
+        'https://vid.puffyan.us',
+        'https://invidious.flokinet.to',
       ];
 
-      for (const instance of pipedInstances) {
+      for (const instance of invidiousInstances) {
         try {
-          const pipedRes = await axios.get(`${instance}/streams/${youtubeId}`, { timeout: 3000 });
-          const audioStreams = pipedRes.data?.audioStreams;
-          if (audioStreams && audioStreams.length > 0) {
+          const invRes = await axios.get(`${instance}/api/v1/videos/${youtubeId}`, { timeout: 4000 });
+          const adaptiveFormats = invRes.data?.adaptiveFormats || [];
+          const audioFormats = adaptiveFormats.filter((f: any) => f.type && f.type.startsWith('audio/'));
+          
+          if (audioFormats.length > 0) {
             // Sort by bitrate highest first
-            audioStreams.sort((a: any, b: any) => (b.bitrate || 0) - (a.bitrate || 0));
-            const bestStream = audioStreams[0];
-            if (bestStream?.url) {
+            audioFormats.sort((a: any, b: any) => (parseInt(b.bitrate || '0', 10)) - (parseInt(a.bitrate || '0', 10)));
+            const bestAudio = audioFormats[0];
+            if (bestAudio?.url) {
               const result = {
-                url: bestStream.url,
-                format: bestStream.mimeType?.includes('mp4') ? 'm4a' : 'webm',
+                url: bestAudio.url,
+                format: bestAudio.type.includes('mp4') ? 'm4a' : 'webm',
                 quality: 'high',
-                durationMs: (pipedRes.data.duration || 0) * 1000,
+                durationMs: (invRes.data.lengthSeconds || 0) * 1000,
               };
               directUrlCache.set(youtubeId, { ...result, timestamp: Date.now() });
-              console.log(`[PIPED STREAM] Resolved audio for ${youtubeId} in <200ms`);
+              console.log(`[INVIDIOUS STREAM] Resolved ${youtubeId} via ${instance}`);
               return result;
             }
           }
         } catch (e) {
-          // try next instance
+          // Try next Invidious mirror
         }
       }
 

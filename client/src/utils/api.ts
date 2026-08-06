@@ -34,12 +34,9 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    // Log error cleanly without nuking local storage
     if (error.response?.status === 401) {
-      // Clear invalid token from storage without hard reloading page if already on login page
-      localStorage.removeItem('authToken');
-      if (window.location.pathname !== '/login' && window.location.pathname !== '/auth/callback') {
-        window.location.href = '/login';
-      }
+      console.warn('[API Interceptor] 401 Unauthorized encountered for URL:', error.config?.url);
     }
     return Promise.reject(error);
   }
