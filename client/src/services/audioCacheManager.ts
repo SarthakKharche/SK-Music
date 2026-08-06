@@ -159,61 +159,40 @@ class AudioCacheManager {
             audioBlobUrl = highestQual;
           }
         }
-      const contentLength = parseInt(audioResponse.headers.get('content-length') || '0');
+      }
+    } catch (e) {
+      console.warn('Saavn stream resolution error:', e);
+    }
 
-      console.log('[OFFLINE] Streaming audio from server, format:', format, 'size:', contentLength);
+    if (!audioBlobUrl) {
+      audioBlobUrl = `${import.meta.env.VITE_API_URL || '/api'}/audio/download/${track.id}`;
+    }
 
-      const reader = audioResponse.body?.getReader();
-      
-      if (!reader) {
-        throw new Error('No response body');
+    try {
+      const audioResponse = await fetch(audioBlobUrl);
+      if (!audioResponse.ok) {
+        throw new Error(`Audio download failed: ${audioResponse.status}`);
       }
 
-      const chunks: Uint8Array[] = [];
-      let receivedLength = 0;
-
-      while (true) {
-        const { done, value } = await reader.read();
-        
-        if (done) break;
-        
-        chunks.push(value);
-        receivedLength += value.length;
-
-        // Update progress
-        const progress = contentLength > 0 
-          ? (receivedLength / contentLength) * 100 
-          : 0;
-        
-        this.notifySyncStatus({
-          trackId: track.id,
-          status: 'downloading',
-          progress,
-        });
+      const blob = await audioResponse.blob();
+      if (blob.size < 50000) {
+        throw new Error('Downloaded audio binary is incomplete');
       }
 
-      // Create valid audio blob from chunks
-      const mimeType = format && format !== 'webm' ? `audio/${format}` : 'audio/mp4';
-      const blob = new Blob(chunks as BlobPart[], { type: mimeType });
-
-      if (blob.size < 100000) {
-        throw new Error('Downloaded audio blob is corrupt or incomplete');
-      }
-
-      // Save to IndexedDB with track metadata
       const cachedAudio: CachedAudio = {
         trackId: track.id,
         blob,
-        format: format,
-        quality: quality as 'low' | 'medium' | 'high',
-        durationMs: durationMs,
+        format: 'mp3',
+        quality: 'high',
+        durationMs: track.durationMs || 180000,
         cachedAt: new Date().toISOString(),
         lastAccessedAt: new Date().toISOString(),
         sizeBytes: blob.size,
-        track, // Store track metadata for offline display
+        track,
       };
 
       await indexedDB.cacheAudio(cachedAudio);
+      console.log(`✅ Downloaded for offline: ${track.name} (${(blob.size / 1024 / 1024).toFixed(2)} MB)`);
 
       this.notifySyncStatus({
         trackId: track.id,
@@ -221,16 +200,16 @@ class AudioCacheManager {
         progress: 100,
       });
 
-      console.log(`✅ Downloaded for offline: ${track.name} (${(blob.size / 1024 / 1024).toFixed(2)} MB)`);
+      return cachedAudio;
     } catch (error) {
       console.error('[OFFLINE] Failed to download:', track.name, error);
-      
       this.notifySyncStatus({
         trackId: track.id,
         status: 'failed',
         progress: 0,
         error: error instanceof Error ? error.message : 'Download failed',
       });
+      throw error;
     }
   }
 
