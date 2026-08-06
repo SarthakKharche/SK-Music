@@ -8,7 +8,6 @@ import type { User } from '../types/user.types';
 
 const router = Router();
 const spotifyService = new SpotifyService();
-const clientUrl = process.env.CLIENT_URL || (process.env.CLIENT_URLS ? process.env.CLIENT_URLS.split(',')[0].trim() : '') || 'https://localhost:5173';
 
 /**
  * GET /api/auth/google
@@ -35,10 +34,16 @@ router.get(
     passport.authenticate('google', { failureRedirect: `${targetClient}/login`, session: false })(req, res, next);
   },
   (req, res) => {
+    const user = req.user as User;
+    
+    const token = jwt.sign(
+      { uid: user.uid, email: user.email },
+      process.env.JWT_SECRET!,
+      { expiresIn: '30d' }
+    );
+
     // Dynamically determine target client URL
-    const targetClient = 
-      req.headers.referer?.startsWith('https://sk-music-xi.vercel.app') ? 'https://sk-music-xi.vercel.app' :
-      (process.env.CLIENT_URL || 'https://sk-music-xi.vercel.app');
+    const targetClient = process.env.CLIENT_URL || 'https://sk-music-xi.vercel.app';
 
     console.log(`[AUTH CALLBACK] Redirecting to: ${targetClient}/auth/callback`);
     res.redirect(`${targetClient}/auth/callback?token=${token}`);
