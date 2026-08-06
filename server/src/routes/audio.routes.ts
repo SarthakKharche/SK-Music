@@ -145,35 +145,20 @@ router.get('/download/:youtubeId', async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Headers', '*');
     
-    const play = await import('play-dl');
     const axios = (await import('axios')).default;
 
-    // 1. Try play.dl stream
-    try {
-      const stream = await play.stream(`https://www.youtube.com/watch?v=${youtubeId}`, { quality: 2 });
-      if (stream?.stream) {
-        res.setHeader('Content-Type', stream.type || 'audio/webm');
-        res.setHeader('X-Audio-Format', stream.type?.includes('mp4') ? 'mp4' : 'webm');
-        stream.stream.pipe(res);
-        return;
-      }
-    } catch (playErr) {
-      console.warn('[DOWNLOAD] play-dl stream failed:', playErr);
-    }
-
-    // 2. Invidious CDN Fallback
-    const cdnUrls = [
-      `https://inv.tux.pizza/latest_version?id=${youtubeId}&itag=140`,
+    const streamMirrors = [
       `https://invidious.nerdvpn.de/latest_version?id=${youtubeId}&itag=140`,
       `https://yewtu.be/latest_version?id=${youtubeId}&itag=140`,
+      `https://vid.puffyan.us/latest_version?id=${youtubeId}&itag=140`,
     ];
 
-    for (const cdnUrl of cdnUrls) {
+    for (const cdnUrl of streamMirrors) {
       try {
-        console.log(`[DOWNLOAD] Fetching audio from CDN: ${cdnUrl}`);
+        console.log(`[DOWNLOAD] Attempting stream fetch from: ${cdnUrl}`);
         const streamRes = await axios.get(cdnUrl, {
           responseType: 'stream',
-          timeout: 12000,
+          timeout: 10000,
           maxRedirects: 5,
           headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -190,11 +175,11 @@ router.get('/download/:youtubeId', async (req, res) => {
           return;
         }
       } catch (err) {
-        console.warn(`[DOWNLOAD] CDN fetch failed: ${cdnUrl}`);
+        console.warn(`[DOWNLOAD] Mirror failed: ${cdnUrl}`);
       }
     }
 
-    return res.status(500).json({ error: 'Audio download failed' });
+    return res.status(500).json({ error: 'Audio stream download failed' });
   } catch (error) {
     console.error('[DOWNLOAD] Error:', error instanceof Error ? error.message : error);
     if (!res.headersSent) {
