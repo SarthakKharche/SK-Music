@@ -164,31 +164,23 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       container = document.createElement('div');
       container.id = 'youtube-player-container';
       container.style.position = 'fixed';
-      container.style.bottom = '100px';
-      container.style.right = '24px';
-      container.style.width = '240px';
-      container.style.height = '135px';
-      container.style.zIndex = '9999';
-      container.style.borderRadius = '12px';
-      container.style.overflow = 'hidden';
-      container.style.boxShadow = '0 10px 30px rgba(0,0,0,0.5)';
-      container.style.border = '1px solid rgba(255,255,255,0.1)';
-      container.style.pointerEvents = 'none';
-      container.style.transition = 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
+      container.style.top = '-9999px';
+      container.style.left = '-9999px';
+      container.style.width = '1px';
+      container.style.height = '1px';
       container.style.opacity = '0';
-      container.style.transform = 'scale(0.8)';
-      container.style.transformOrigin = 'bottom right';
+      container.style.pointerEvents = 'none';
       container.innerHTML = '<div id="youtube-player" style="width: 100%; height: 100%;"></div>';
       document.body.appendChild(container);
     }
   }, []);
 
   useEffect(() => {
+    // Keep YouTube player container hidden offscreen for clean audio-only UI
     const container = document.getElementById('youtube-player-container');
     if (container) {
-      container.style.opacity = isYouTube ? '1' : '0';
-      container.style.transform = isYouTube ? 'scale(1)' : 'scale(0.8)';
-      container.style.pointerEvents = isYouTube ? 'auto' : 'none';
+      container.style.opacity = '0';
+      container.style.pointerEvents = 'none';
     }
   }, [isYouTube]);
 
