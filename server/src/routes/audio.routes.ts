@@ -207,6 +207,7 @@ router.get('/download/:youtubeId', async (req, res) => {
       noPlaylist: true,
       noWarnings: true,
       noCheckCertificates: true,
+      extractorArgs: 'youtube:player_client=ios,web_creator',
     } as any);
 
     if (!existsSync(outputFile)) {

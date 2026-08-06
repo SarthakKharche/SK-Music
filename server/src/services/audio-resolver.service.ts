@@ -127,13 +127,15 @@ export class AudioResolverService {
       // 2. InnerTube Android /player API (<150ms instant response)
       try {
         const innertubeRes = await axios.post(
-          `https://music.youtube.com/youtubei/v1/player?key=AIzaSyAO1spn4Vx86us6r2cK7vP7W50PgF059CE`,
+          `https://www.youtube.com/youtubei/v1/player?key=AIzaSyAO1spn4Vx86us6r2cK7vP7W50PgF059CE`,
           {
             context: {
               client: {
-                clientName: 'ANDROID',
-                clientVersion: '19.05.36',
-                androidSdkVersion: 33,
+                clientName: 'IOS',
+                clientVersion: '19.45.4',
+                deviceModel: 'iPhone14,3',
+                osName: 'iPhone',
+                osVersion: '17.5.1.21F90',
               },
             },
             videoId: youtubeId,
@@ -141,7 +143,7 @@ export class AudioResolverService {
           {
             headers: {
               'Content-Type': 'application/json',
-              'User-Agent': 'com.google.android.apps.youtube.music/6.41.52 (Linux; U; Android 13; GLO-LX3 Build/HUAWEIGLO-LX3; Cronet/110.0.5481.153)',
+              'User-Agent': 'com.google.ios.youtube/19.45.4 (iPhone14,3; U; CPU iOS 17_5_1 like Mac OS X; en_US)',
             },
             timeout: 5000,
           }
