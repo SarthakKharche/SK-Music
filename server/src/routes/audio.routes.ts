@@ -143,51 +143,19 @@ router.get('/download/:youtubeId', async (req, res) => {
     }
 
     console.log(`[DOWNLOAD] Attempting audio stream for: ${youtubeId}`);
-    const directUrlInfo = await audioResolverService.getDirectAudioUrl(youtubeId);
-    if (directUrlInfo?.url) {
-      console.log(`[DOWNLOAD] Proxying direct CDN stream for ${youtubeId}`);
-      const rangeHeader = req.headers.range;
-      const headers: Record<string, string> = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      };
-      if (rangeHeader) {
-        headers['Range'] = rangeHeader;
+    try {
+      const directUrlInfo = await audioResolverService.getDirectAudioUrl(youtubeId);
+      if (directUrlInfo?.url) {
+        return res.redirect(directUrlInfo.url);
       }
-
-      const cdnResponse = await axios.get(directUrlInfo.url, {
-        headers,
-        responseType: 'stream',
-        validateStatus: () => true,
-      });
-
-      if (cdnResponse.status >= 200 && cdnResponse.status < 300) {
-        res.status(cdnResponse.status);
-        if (cdnResponse.headers['content-type']) {
-          res.setHeader('Content-Type', cdnResponse.headers['content-type']);
-        } else {
-          res.setHeader('Content-Type', 'audio/webm');
-        }
-        if (cdnResponse.headers['content-length']) {
-          res.setHeader('Content-Length', cdnResponse.headers['content-length']);
-        }
-        if (cdnResponse.headers['content-range']) {
-          res.setHeader('Content-Range', cdnResponse.headers['content-range']);
-        }
-        res.setHeader('Accept-Ranges', 'bytes');
-
-        cdnResponse.data.pipe(res);
-        return;
-      } else if (cdnResponse.status === 302 || cdnResponse.status === 301) {
-        return res.redirect(cdnResponse.headers.location || directUrlInfo.url);
-      }
+    } catch (e) {
+      console.warn('[DOWNLOAD] Direct url extraction failed, using CDN fallback:', e);
     }
 
-    // Fallback: If direct proxy fails, redirect to direct stream URL
-    if (directUrlInfo?.url) {
-      return res.redirect(directUrlInfo.url);
-    }
-
-    return res.status(404).json({ error: 'Audio stream temporarily unavailable' });
+    // Direct CDN fallback URL (itag 140 is AAC 128kbps audio format)
+    const fallbackCdnUrl = `https://inv.tux.pizza/latest_version?id=${youtubeId}&itag=140`;
+    console.log(`[DOWNLOAD] Redirecting to fallback CDN stream: ${fallbackCdnUrl}`);
+    return res.redirect(fallbackCdnUrl);
   } catch (error) {
     console.error('[DOWNLOAD] Error:', error instanceof Error ? error.message : error);
     if (!res.headersSent) {
