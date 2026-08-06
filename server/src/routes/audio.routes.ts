@@ -189,65 +189,22 @@ router.get('/download/:youtubeId', async (req, res) => {
       console.warn('[DOWNLOAD] Direct stream extraction failed, falling back to local download:', directErr);
     }
 
-    console.log(`[DOWNLOAD] Starting audio download for: ${youtubeId}`);
+    console.log(`[DOWNLOAD] Starting audio stream via play-dl for: ${youtubeId}`);
+    const play = await import('play-dl');
+    const stream = await play.stream(`https://www.youtube.com/watch?v=${youtubeId}`, {
+      quality: 2, // High quality audio
+    });
 
-    const videoUrl = `https://www.youtube.com/watch?v=${youtubeId}`;
-    const outputFile = join(TEMP_DIR, `${youtubeId}.webm`);
-    
-    // Clean up old file if exists
-    if (existsSync(outputFile)) {
-      unlinkSync(outputFile);
+    if (!stream || !stream.stream) {
+      return res.status(500).json({ error: 'Failed to extract stream' });
     }
 
-    // Execute system yt-dlp binary directly
-    const { execFile } = await import('child_process');
-    const { promisify } = await import('util');
-    const execFilePromise = promisify(execFile);
-
-    await execFilePromise('/usr/local/bin/yt-dlp', [
-      videoUrl,
-      '--format', 'bestaudio',
-      '--output', outputFile,
-      '--no-playlist',
-      '--no-warnings',
-      '--no-check-certificates',
-      '--extractor-args', 'youtube:player_client=ios,web_creator',
-    ]);
-
-    if (!existsSync(outputFile)) {
-      console.error(`[DOWNLOAD] File not created for: ${youtubeId}`);
-      return res.status(500).json({ error: 'Download failed - file not created' });
-    }
-
-    console.log(`[DOWNLOAD] File ready, streaming: ${youtubeId}`);
-
-    const stats = statSync(outputFile);
-    const range = req.headers.range;
-
+    res.setHeader('Content-Type', stream.type || 'audio/webm');
     res.setHeader('Accept-Ranges', 'bytes');
     res.setHeader('X-Audio-Format', 'webm');
     res.setHeader('X-Audio-Quality', 'high');
 
-    if (range) {
-      const parts = range.replace(/bytes=/, '').split('-');
-      const start = parseInt(parts[0], 10);
-      const end = parts[1] ? parseInt(parts[1], 10) : stats.size - 1;
-      const chunksize = end - start + 1;
-
-      res.status(206);
-      res.setHeader('Content-Range', `bytes ${start}-${end}/${stats.size}`);
-      res.setHeader('Content-Length', chunksize);
-      res.setHeader('Content-Type', 'audio/webm');
-
-      const fileStream = createReadStream(outputFile, { start, end });
-      fileStream.pipe(res);
-    } else {
-      res.setHeader('Content-Type', 'audio/webm');
-      res.setHeader('Content-Length', stats.size);
-      const fileStream = createReadStream(outputFile);
-      fileStream.pipe(res);
-    }
-
+    stream.stream.pipe(res);
     return;
   } catch (error) {
     console.error('[DOWNLOAD] Error:', error instanceof Error ? error.message : error);
