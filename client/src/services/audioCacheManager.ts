@@ -85,37 +85,13 @@ class AudioCacheManager {
       return null;
     }
 
-    // High reliability YouTube audio stream instances
+    // Direct HTML5 Audio Stream URL (Immune to JS fetch CORS restrictions)
     if (source.youtubeId) {
       console.log('Using YouTube source for:', track.name, source.youtubeId);
       localStorage.setItem(`youtube_${track.id}`, source.youtubeId);
       
-      const streamMirrors = [
-        `https://piped-api.garudalinux.org/streams/${source.youtubeId}`,
-        `https://api.piped.projectsegfau.lt/streams/${source.youtubeId}`,
-        `https://piped-api.lunar.icu/streams/${source.youtubeId}`,
-      ];
-
-      for (const instanceUrl of streamMirrors) {
-        try {
-          const res = await fetch(instanceUrl);
-          const data = await res.json();
-          const audioStreams = data?.audioStreams;
-          if (audioStreams && audioStreams.length > 0) {
-            audioStreams.sort((a: any, b: any) => (b.bitrate || 0) - (a.bitrate || 0));
-            const bestAudio = audioStreams[0];
-            if (bestAudio?.url) {
-              console.log('Resolved clean audio stream URL:', bestAudio.url);
-              return bestAudio.url;
-            }
-          }
-        } catch (e) {
-          // Try next mirror
-        }
-      }
-
-      // Final fallback to Invidious audio proxy
-      return `https://invidious.jing.rocks/latest_version?id=${source.youtubeId}&itag=140`;
+      // Yewtu.be & Invidious high-compatibility audio stream endpoint (itag 140 = 128k AAC audio)
+      return `https://yewtu.be/latest_version?id=${source.youtubeId}&itag=140`;
     }
 
     // For direct audio URLs, cache in background
