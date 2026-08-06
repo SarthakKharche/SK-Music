@@ -143,12 +143,27 @@ class AudioCacheManager {
 
       console.log('[OFFLINE] Fetching audio stream blob for offline storage:', youtubeId);
       
-      const audioUrl = `https://invidious.drgns.space/latest_version?id=${youtubeId}&itag=140`;
-      
-      const audioResponse = await fetch(audioUrl);
-      
-      if (!audioResponse.ok) {
-        throw new Error(`Stream error: ${audioResponse.status}`);
+      const streamUrls = [
+        `https://yewtu.be/latest_version?id=${youtubeId}&itag=140`,
+        `https://invidious.nerdvpn.de/latest_version?id=${youtubeId}&itag=140`,
+        `https://vid.puffyan.us/latest_version?id=${youtubeId}&itag=140`,
+      ];
+
+      let audioResponse: Response | null = null;
+      for (const url of streamUrls) {
+        try {
+          const res = await fetch(url);
+          if (res.ok) {
+            audioResponse = res;
+            break;
+          }
+        } catch {
+          // Try next mirror URL
+        }
+      }
+
+      if (!audioResponse || !audioResponse.ok) {
+        throw new Error('Offline audio stream unavailable');
       }
 
       // Get metadata from response headers
