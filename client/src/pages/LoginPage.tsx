@@ -15,25 +15,10 @@ const LoginPage: React.FC = () => {
     return '/api/auth/google';
   };
 
-  const handleGoogleLogin = async () => {
+  const handleGoogleLogin = () => {
     setLoading(true);
     setError(null);
-
     const authUrl = getAuthUrl();
-
-    // Check health check endpoint
-    try {
-      const healthUrl = authUrl.includes('/api/auth/google')
-        ? authUrl.replace('/api/auth/google', '/health')
-        : '/health';
-      await fetch(healthUrl);
-    } catch {
-      setError('Cannot reach the server. Make sure the backend on EC2 is running.');
-      setLoading(false);
-      return;
-    }
-
-    // Navigate to Google OAuth
     window.location.href = authUrl;
   };
 
