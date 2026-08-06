@@ -147,68 +147,79 @@ router.get('/download/:youtubeId', async (req, res) => {
     
     const axios = (await import('axios')).default;
 
-    // 1. Resolve direct audio stream URL via Piped API mirrors
-    const pipedInstances = [
-      'https://pipedapi.adminforge.de',
-      'https://pipedapi.kavin.rocks',
-      'https://pipedapi.mha.fi',
-    ];
+    let audioStreamUrl: string | null = null;
 
-    let directAudioUrl: string | null = null;
-    for (const instance of pipedInstances) {
-      try {
-        const pipedRes = await axios.get(`${instance}/streams/${youtubeId}`, { timeout: 4000 });
-        const audioStreams = pipedRes.data?.audioStreams;
-        if (audioStreams && audioStreams.length > 0) {
-          audioStreams.sort((a: any, b: any) => (b.bitrate || 0) - (a.bitrate || 0));
-          if (audioStreams[0]?.url) {
-            const resolvedUrl: string = audioStreams[0].url;
-            directAudioUrl = resolvedUrl;
-            console.log(`[DOWNLOAD] Resolved Piped stream URL: ${resolvedUrl.substring(0, 40)}`);
-            break;
-          }
-        }
-      } catch (e) {
-        // Try next Piped mirror
-      }
-    }
-
-    // 2. Cobalt API Fallback
-    if (!directAudioUrl) {
-      try {
-        const cobaltRes = await axios.post(
-          'https://api.cobalt.tools',
-          { url: `https://www.youtube.com/watch?v=${youtubeId}` },
-          { headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, timeout: 5000 }
-        );
-        if (cobaltRes.data?.url) {
-          const cobaltUrl: string = cobaltRes.data.url;
-          directAudioUrl = cobaltUrl;
-          console.log(`[DOWNLOAD] Resolved Cobalt stream URL: ${cobaltUrl.substring(0, 40)}`);
-        }
-      } catch (e) {
-        // Cobalt failed
-      }
-    }
-
-    if (!directAudioUrl) {
-      directAudioUrl = `https://invidious.nerdvpn.de/latest_version?id=${youtubeId}&itag=140`;
-    }
-
-    // Stream audio binary directly to client with zero memory buffering
+    // 1. Resolve direct audio stream from Cobalt API
     try {
-      console.log(`[DOWNLOAD] Piping audio stream from CDN...`);
-      const streamRes = await axios.get(directAudioUrl, {
+      const cobaltRes = await axios.post(
+        'https://api.cobalt.tools',
+        {
+          url: `https://www.youtube.com/watch?v=${youtubeId}`,
+          downloadMode: 'audio',
+          audioFormat: 'mp3',
+        },
+        {
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+          },
+          timeout: 7000,
+        }
+      );
+
+      if (cobaltRes.data?.url) {
+        audioStreamUrl = cobaltRes.data.url;
+        console.log(`[DOWNLOAD] Cobalt stream URL resolved successfully`);
+      }
+    } catch (cobaltErr) {
+      console.warn(`[DOWNLOAD] Cobalt API resolution failed: ${cobaltErr}`);
+    }
+
+    // 2. Fallback to Piped API
+    if (!audioStreamUrl) {
+      const pipedInstances = [
+        'https://pipedapi.adminforge.de',
+        'https://pipedapi.kavin.rocks',
+        'https://pipedapi.mha.fi',
+      ];
+
+      for (const instance of pipedInstances) {
+        try {
+          const pipedRes = await axios.get(`${instance}/streams/${youtubeId}`, { timeout: 4000 });
+          const audioStreams = pipedRes.data?.audioStreams;
+          if (audioStreams && audioStreams.length > 0) {
+            audioStreams.sort((a: any, b: any) => (b.bitrate || 0) - (a.bitrate || 0));
+            if (audioStreams[0]?.url) {
+              audioStreamUrl = audioStreams[0].url;
+              console.log(`[DOWNLOAD] Resolved Piped stream URL`);
+              break;
+            }
+          }
+        } catch {
+          // Try next Piped mirror
+        }
+      }
+    }
+
+    if (!audioStreamUrl) {
+      return res.status(500).json({ error: 'Failed to resolve audio stream URL' });
+    }
+
+    // Stream audio binary directly to client
+    try {
+      console.log(`[DOWNLOAD] Piping audio stream to client...`);
+      const streamRes = await axios.get(audioStreamUrl, {
         responseType: 'stream',
-        timeout: 10000,
+        timeout: 15000,
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Referer': 'https://www.youtube.com/',
         },
       });
 
       if (streamRes.status >= 200 && streamRes.status < 300) {
-        res.setHeader('Content-Type', streamRes.headers['content-type'] || 'audio/mp4');
-        res.setHeader('X-Audio-Format', 'mp4');
+        res.setHeader('Content-Type', 'audio/mp3');
+        res.setHeader('X-Audio-Format', 'mp3');
         if (streamRes.headers['content-length']) {
           res.setHeader('Content-Length', streamRes.headers['content-length']);
         }
@@ -216,7 +227,7 @@ router.get('/download/:youtubeId', async (req, res) => {
         return;
       }
     } catch (err) {
-      console.warn(`[DOWNLOAD] Direct stream pipe failed: ${err}`);
+      console.warn(`[DOWNLOAD] Stream pipe failed: ${err}`);
     }
 
     return res.status(500).json({ error: 'Audio download stream failed' });
