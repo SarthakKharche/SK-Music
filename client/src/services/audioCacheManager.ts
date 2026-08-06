@@ -145,52 +145,31 @@ class AudioCacheManager {
       
       let audioBlobUrl: string | null = null;
 
-      // 1. Try Piped API instances (CORS enabled)
-      const pipedInstances = [
-        'https://pipedapi.adminforge.de',
-        'https://pipedapi.kavin.rocks',
-        'https://pipedapi.mha.fi',
+      // 1. Try Invidious API endpoints (Sends Access-Control-Allow-Origin: *)
+      const invidiousInstances = [
+        'https://invidious.nerdvpn.de',
+        'https://yewtu.be',
+        'https://inv.tux.pizza',
+        'https://vid.puffyan.us',
       ];
 
-      for (const instance of pipedInstances) {
+      for (const instance of invidiousInstances) {
         try {
-          const res = await fetch(`${instance}/streams/${youtubeId}`);
+          const res = await fetch(`${instance}/api/v1/videos/${youtubeId}`);
           if (res.ok) {
             const data = await res.json();
-            const audioStreams = data?.audioStreams;
-            if (audioStreams && audioStreams.length > 0) {
-              audioStreams.sort((a: any, b: any) => (b.bitrate || 0) - (a.bitrate || 0));
-              if (audioStreams[0]?.url) {
-                audioBlobUrl = audioStreams[0].url;
+            const adaptiveFormats = data?.adaptiveFormats;
+            if (adaptiveFormats && adaptiveFormats.length > 0) {
+              const audioOnly = adaptiveFormats.filter((f: any) => f.type?.includes('audio'));
+              if (audioOnly.length > 0) {
+                audioOnly.sort((a: any, b: any) => (parseInt(b.bitrate) || 0) - (parseInt(a.bitrate) || 0));
+                audioBlobUrl = audioOnly[0].url;
                 break;
               }
             }
           }
         } catch {
-          // Try next Piped mirror
-        }
-      }
-
-      // 2. Try Cobalt API fallback
-      if (!audioBlobUrl) {
-        try {
-          const cobaltRes = await fetch('https://api.cobalt.tools/', {
-            method: 'POST',
-            headers: {
-              'Accept': 'application/json',
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              url: `https://www.youtube.com/watch?v=${youtubeId}`,
-              downloadMode: 'audio',
-            }),
-          });
-          const cobaltData = await cobaltRes.json();
-          if (cobaltData?.url) {
-            audioBlobUrl = cobaltData.url;
-          }
-        } catch (e) {
-          console.warn('Cobalt stream fetch error:', e);
+          // Try next Invidious instance
         }
       }
 
