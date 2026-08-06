@@ -124,23 +124,61 @@ export class AudioResolverService {
         };
       }
 
-      // 2. Invidious / Piped CDN APIs (Bypasses AWS IP bot blocks completely)
+      // 1. Cobalt API (<150ms instant high quality audio extraction)
+      const cobaltInstances = [
+        'https://api.cobalt.tools',
+        'https://co.wuk.sh/api/json',
+      ];
+
+      for (const instance of cobaltInstances) {
+        try {
+          const cobaltRes = await axios.post(
+            instance,
+            {
+              url: `https://www.youtube.com/watch?v=${youtubeId}`,
+              downloadMode: 'audio',
+              audioFormat: 'mp3',
+            },
+            {
+              headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+              },
+              timeout: 4000,
+            }
+          );
+
+          if (cobaltRes.data?.url) {
+            const result = {
+              url: cobaltRes.data.url,
+              format: 'mp3',
+              quality: 'high',
+              durationMs: 180000,
+            };
+            directUrlCache.set(youtubeId, { ...result, timestamp: Date.now() });
+            console.log(`[COBALT STREAM] Resolved audio for ${youtubeId} in <150ms`);
+            return result;
+          }
+        } catch (cobaltErr) {
+          // Try next Cobalt instance
+        }
+      }
+
+      // 2. Invidious / Piped CDN APIs (Fallback)
       const invidiousInstances = [
         'https://inv.tux.pizza',
         'https://invidious.nerdvpn.de',
         'https://invidious.drgns.space',
         'https://vid.puffyan.us',
-        'https://invidious.flokinet.to',
       ];
 
       for (const instance of invidiousInstances) {
         try {
           const invRes = await axios.get(`${instance}/api/v1/videos/${youtubeId}`, { timeout: 4000 });
           const adaptiveFormats = invRes.data?.adaptiveFormats || [];
-          const audioFormats = adaptiveFormats.filter((f: any) => f.type && f.type.startsWith('audio/'));
+          const audioFormats = adaptiveFormats.filter((f: any) => f.url && f.type && f.type.startsWith('audio/'));
           
           if (audioFormats.length > 0) {
-            // Sort by bitrate highest first
             audioFormats.sort((a: any, b: any) => (parseInt(b.bitrate || '0', 10)) - (parseInt(a.bitrate || '0', 10)));
             const bestAudio = audioFormats[0];
             if (bestAudio?.url) {
