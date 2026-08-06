@@ -141,18 +141,29 @@ class AudioCacheManager {
         progress: 0,
       });
 
-      console.log('[OFFLINE] Fetching audio stream blob via backend proxy:', youtubeId);
+      console.log('[OFFLINE] Downloading audio stream directly to browser:', youtubeId);
       
-      const apiPrefix = import.meta.env.VITE_API_URL || '/api';
-      const audioResponse = await fetch(`${apiPrefix}/audio/download/${youtubeId}`);
+      const cdnMirrors = [
+        `https://yewtu.be/latest_version?id=${youtubeId}&itag=140`,
+        `https://invidious.jing.rocks/latest_version?id=${youtubeId}&itag=140`,
+        `https://invidious.nerdvpn.de/latest_version?id=${youtubeId}&itag=140`,
+      ];
 
-      if (!audioResponse.ok) {
-        throw new Error(`Download error: ${audioResponse.status}`);
+      let audioResponse: Response | null = null;
+      for (const mirrorUrl of cdnMirrors) {
+        try {
+          const res = await fetch(mirrorUrl);
+          if (res.ok && res.status === 200) {
+            audioResponse = res;
+            break;
+          }
+        } catch (e) {
+          // Try next mirror
+        }
       }
 
-      const contentType = audioResponse.headers.get('content-type') || '';
-      if (contentType.includes('application/json') || contentType.includes('text/html')) {
-        throw new Error('Server returned invalid audio stream response');
+      if (!audioResponse) {
+        throw new Error('All audio download mirrors failed');
       }
 
       // Get metadata from response headers
