@@ -13,127 +13,56 @@ if (!existsSync(TEMP_DIR)) {
 
 const router = Router();
 
-router.get('/saavn-search', async (req, res) => {
+router.get('/saavn-search', async (req: Request, res: Response) => {
   try {
-    const rawQuery = req.query.query as string;
-    if (!rawQuery) {
-      return res.status(400).json({ error: 'Missing query' });
-    }
-
-    const axios = (await import('axios')).default;
-    // Extract main song title and main primary artist only
-    const cleanQuery = rawQuery
-      .split(',')[0] // Take first artist before commas
-      .split('&')[0] // Take first artist before &
-      .replace(/[\(\)\[\]"'\-_]/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-
-    const songTitleOnly = cleanQuery.split(' ')[0] + ' ' + (cleanQuery.split(' ')[1] || '');
-
-    const saavnEndpoints = [
-      `https://saavn.me/api/search/songs?query=${encodeURIComponent(cleanQuery)}`,
-      `https://saavn.me/api/search/songs?query=${encodeURIComponent(songTitleOnly)}`,
-      `https://jiosaavn-api-private-us.vercel.app/search/songs?query=${encodeURIComponent(cleanQuery)}`,
-    ];
-
-    let directMp3Url: string | null = null;
-
-    for (const endpoint of saavnEndpoints) {
-      try {
-        const apiRes = await axios.get(endpoint, { timeout: 4000 });
-        const songs = apiRes.data?.data?.results || apiRes.data?.results;
-        if (songs && songs.length > 0 && songs[0].downloadUrl) {
-          const downloadUrls = songs[0].downloadUrl;
-          const highestQual = downloadUrls[downloadUrls.length - 1]?.url || downloadUrls[0]?.url;
-          if (highestQual) {
-            directMp3Url = highestQual;
-            break;
-          }
-        }
-      } catch (e) {
-        // Try next endpoint
-      }
-    }
-
-    // 2. If Saavn search misses (e.g. YouTube Remixes), execute yt-dlp / Piped fallback
-    if (!directMp3Url) {
-      const trackId = req.query.trackId as string || rawQuery;
-      const youtubeId = trackId.startsWith('yt-') ? trackId.replace('yt-', '') : trackId;
-      console.log(`[DOWNLOAD] Saavn search missed, extracting YouTube ID via yt-dlp / Piped: ${youtubeId}`);
-      
-      const { exec } = await import('child_process');
-      const util = await import('util');
-      const execPromise = util.promisify(exec);
-
-      try {
-        const { stdout } = await execPromise(`yt-dlp -f bestaudio -g "https://www.youtube.com/watch?v=${youtubeId}"`, { timeout: 8000 });
-        if (stdout && stdout.trim().startsWith('http')) {
-          directMp3Url = stdout.trim().split('\n')[0];
-          console.log('[DOWNLOAD] Resolved direct audio stream via yt-dlp!');
-        }
-      } catch (e) {
-        console.warn('[DOWNLOAD] yt-dlp fallback failed, trying Piped API:', e);
-        const pipedInstances = [
-          'https://pipedapi.adminforge.de',
-          'https://pipedapi.kavin.rocks',
-          'https://pipedapi.tokhmi.xyz',
-        ];
-
-        for (const instance of pipedInstances) {
-          try {
-            const pipedRes = await axios.get(`${instance}/streams/${youtubeId}`, { timeout: 5000 });
-            const audioStreams = pipedRes.data?.audioStreams;
-            if (audioStreams && audioStreams.length > 0) {
-              audioStreams.sort((a: any, b: any) => (b.bitrate || 0) - (a.bitrate || 0));
-              if (audioStreams[0]?.url) {
-                directMp3Url = audioStreams[0].url;
-                console.log(`[DOWNLOAD] Resolved Piped stream URL on EC2`);
-                break;
-              }
-            }
-          } catch {}
-        }
-      }
-    }
-
-    if (!directMp3Url) {
-      const trackId = req.query.trackId as string || rawQuery;
-      const youtubeId = trackId.startsWith('yt-') ? trackId.replace('yt-', '') : trackId;
-      console.log(`[DOWNLOAD] Fallback to direct binary audio download for YouTube ID: ${youtubeId}`);
-      return res.redirect(`/api/audio/download/${youtubeId}`);
-    }
-
-    // Download binary audio buffer and send back with CORS headers
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Headers', '*');
-    
-    try {
-      const audioStreamRes = await axios.get(directMp3Url, {
-        responseType: 'arraybuffer',
-        timeout: 15000,
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        },
-      });
-
-      if (audioStreamRes.status >= 200 && audioStreamRes.status < 300 && audioStreamRes.data) {
-        const buffer = Buffer.from(audioStreamRes.data);
-        res.setHeader('Content-Type', 'audio/mp4');
-        res.setHeader('X-Audio-Format', 'mp4');
-        res.setHeader('Content-Length', buffer.length.toString());
-        return res.send(buffer);
-      }
-    } catch (e) {
-      console.warn('[DOWNLOAD] Direct stream fetch failed:', e);
-    }
-
-    // Ultimate fallback redirect to binary audio download route
-    const trackId = req.query.trackId as string || rawQuery;
+    const rawQuery = (req.query.query as string) || '';
+    const trackId = (req.query.trackId as string) || rawQuery;
     const youtubeId = trackId.startsWith('yt-') ? trackId.replace('yt-', '') : trackId;
-    return res.redirect(`/api/audio/download/${youtubeId}`);
+
+    console.log(`[DOWNLOAD] Extracting 100% direct audio with yt-dlp for ID: ${youtubeId}, Query: ${rawQuery}`);
+
+    const { exec } = await import('child_process');
+    const util = await import('util');
+    const execPromise = util.promisify(exec);
+
+    let streamUrl: string | null = null;
+
+    // 1. Try resolving via yt-dlp by YouTube ID
+    if (youtubeId && youtubeId.length === 11) {
+      try {
+        const { stdout } = await execPromise(`yt-dlp -f bestaudio -g "https://www.youtube.com/watch?v=${youtubeId}"`, { timeout: 12000 });
+        if (stdout && stdout.trim().startsWith('http')) {
+          streamUrl = stdout.trim().split('\n')[0];
+          console.log('[DOWNLOAD] yt-dlp resolved by YouTube ID!');
+        }
+      } catch (e) {
+        console.warn('[DOWNLOAD] yt-dlp by ID failed:', e);
+      }
+    }
+
+    // 2. Fallback: Search YouTube directly via yt-dlp with raw query
+    if (!streamUrl && rawQuery) {
+      const cleanSearch = rawQuery.replace(/[\(\)\[\]"'\-_]/g, ' ').replace(/\s+/g, ' ').trim();
+      try {
+        const { stdout } = await execPromise(`yt-dlp -f bestaudio -g "ytsearch1:${cleanSearch}"`, { timeout: 12000 });
+        if (stdout && stdout.trim().startsWith('http')) {
+          streamUrl = stdout.trim().split('\n')[0];
+          console.log('[DOWNLOAD] yt-dlp resolved by search query!');
+        }
+      } catch (e) {
+        console.warn('[DOWNLOAD] yt-dlp by search query failed:', e);
+      }
+    }
+
+    if (!streamUrl) {
+      return res.status(404).json({ error: 'Failed to resolve audio stream with yt-dlp' });
+    }
+
+    // Redirect browser directly to the high-quality audio CDN stream
+    return res.redirect(streamUrl);
   } catch (error) {
-    return res.status(500).json({ error: 'Saavn search failed' });
+    console.error('yt-dlp download error:', error);
+    return res.status(500).json({ error: 'yt-dlp download failed' });
   }
 });
 
