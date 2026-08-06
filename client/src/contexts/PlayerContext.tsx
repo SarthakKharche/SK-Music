@@ -426,7 +426,7 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         return;
       }
 
-      // Regular audio playback
+      // Regular HTML5 / Cached Blob audio playback
       setIsYouTube(false);
       
       // Stop YouTube if playing
@@ -442,8 +442,9 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         timeUpdateIntervalRef.current = null;
       }
 
-      // Load and play
+      // Load and play blob or audio stream
       audio.src = audioUrl;
+      audio.load();
       await audio.play();
 
       setState((prev) => ({
