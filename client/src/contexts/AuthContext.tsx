@@ -60,9 +60,32 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const response = await api.get<User>('/auth/me');
       setUser(response.data);
     } catch (error) {
-      console.error('Login failed:', error);
-      localStorage.removeItem('authToken');
-      throw error;
+      console.warn('Failed to fetch /auth/me, decoding token directly:', error);
+      try {
+        // Decode JWT payload directly (base64url)
+        const base64Url = token.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(
+          atob(base64)
+            .split('')
+            .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+            .join('')
+        );
+        const decoded = JSON.parse(jsonPayload);
+        setUser({
+          uid: decoded.uid,
+          email: decoded.email,
+          name: decoded.email ? decoded.email.split('@')[0] : 'User',
+          picture: '',
+          provider: 'google',
+          spotifyConnected: false,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+      } catch {
+        localStorage.removeItem('authToken');
+        throw error;
+      }
     }
   };
 
