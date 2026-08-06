@@ -141,29 +141,44 @@ class AudioCacheManager {
         progress: 0,
       });
 
-      console.log('[OFFLINE] Downloading audio stream via CORS proxy:', youtubeId);
+      console.log('[OFFLINE] Resolving audio stream via Piped API:', youtubeId);
       
-      const cdnMirrors = [
-        `https://corsproxy.io/?https://yewtu.be/latest_version?id=${youtubeId}&itag=140`,
-        `https://corsproxy.io/?https://invidious.nerdvpn.de/latest_version?id=${youtubeId}&itag=140`,
-        `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://yewtu.be/latest_version?id=${youtubeId}&itag=140`)}`,
+      const pipedInstances = [
+        'https://pipedapi.adminforge.de',
+        'https://pipedapi.kavin.rocks',
+        'https://pipedapi.tokhmi.xyz',
+        'https://pipedapi.mha.fi',
+        'https://api.piped.projectsegfau.lt',
       ];
 
-      let audioResponse: Response | null = null;
-      for (const mirrorUrl of cdnMirrors) {
+      let audioBlobUrl: string | null = null;
+      for (const instance of pipedInstances) {
         try {
-          const res = await fetch(mirrorUrl);
-          if (res.ok && res.status === 200) {
-            audioResponse = res;
-            break;
+          const res = await fetch(`${instance}/streams/${youtubeId}`);
+          if (res.ok) {
+            const data = await res.json();
+            const audioStreams = data?.audioStreams;
+            if (audioStreams && audioStreams.length > 0) {
+              audioStreams.sort((a: any, b: any) => (b.bitrate || 0) - (a.bitrate || 0));
+              if (audioStreams[0]?.url) {
+                audioBlobUrl = audioStreams[0].url;
+                break;
+              }
+            }
           }
-        } catch (e) {
-          // Try next mirror
+        } catch {
+          // Try next Piped instance
         }
       }
 
-      if (!audioResponse) {
+      if (!audioBlobUrl) {
         throw new Error('All audio download mirrors failed');
+      }
+
+      console.log('[OFFLINE] Fetching audio binary from:', audioBlobUrl.substring(0, 40));
+      const audioResponse = await fetch(audioBlobUrl);
+      if (!audioResponse.ok) {
+        throw new Error(`Audio download error: ${audioResponse.status}`);
       }
 
       // Get metadata from response headers
