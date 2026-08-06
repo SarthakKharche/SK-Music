@@ -98,7 +98,10 @@ router.get('/saavn-search', async (req, res) => {
     }
 
     if (!directMp3Url) {
-      return res.status(404).json({ error: 'Song stream not found' });
+      const trackId = req.query.trackId as string || rawQuery;
+      const youtubeId = trackId.startsWith('yt-') ? trackId.replace('yt-', '') : trackId;
+      console.log(`[DOWNLOAD] Fallback to direct stream proxy for YouTube ID: ${youtubeId}`);
+      return res.redirect(`/api/audio/stream/${youtubeId}`);
     }
 
     // Download binary audio buffer and send back with CORS headers
@@ -108,7 +111,7 @@ router.get('/saavn-search', async (req, res) => {
     try {
       const audioStreamRes = await axios.get(directMp3Url, {
         responseType: 'arraybuffer',
-        timeout: 12000,
+        timeout: 15000,
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         },
@@ -122,11 +125,13 @@ router.get('/saavn-search', async (req, res) => {
         return res.send(buffer);
       }
     } catch (e) {
-      // Direct stream fallback
       console.warn('[DOWNLOAD] Direct stream fetch failed:', e);
     }
 
-    return res.status(500).json({ error: 'Failed to fetch audio stream buffer' });
+    // Ultimate fallback redirect to audio stream route
+    const trackId = req.query.trackId as string || rawQuery;
+    const youtubeId = trackId.startsWith('yt-') ? trackId.replace('yt-', '') : trackId;
+    return res.redirect(`/api/audio/stream/${youtubeId}`);
   } catch (error) {
     return res.status(500).json({ error: 'Saavn search failed' });
   }
