@@ -51,10 +51,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               email: decoded.email,
               name: decoded.email ? decoded.email.split('@')[0] : 'User',
               picture: '',
-              provider: 'google',
               spotifyConnected: false,
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
             });
           } catch {
             localStorage.removeItem('authToken');
@@ -95,10 +92,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           email: decoded.email,
           name: decoded.email ? decoded.email.split('@')[0] : 'User',
           picture: '',
-          provider: 'google',
           spotifyConnected: false,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
         });
       } catch {
         localStorage.removeItem('authToken');
