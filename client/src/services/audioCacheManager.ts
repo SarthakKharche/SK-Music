@@ -141,43 +141,31 @@ class AudioCacheManager {
         progress: 0,
       });
 
-      console.log('[OFFLINE] Resolving audio stream URL for:', youtubeId);
+      console.log('[OFFLINE] Fetching audio binary stream via CORS proxy:', youtubeId);
       
-      let audioBlobUrl: string | null = null;
-
-      // 1. Try Invidious API endpoints (Sends Access-Control-Allow-Origin: *)
-      const invidiousInstances = [
-        'https://invidious.nerdvpn.de',
-        'https://yewtu.be',
-        'https://inv.tux.pizza',
-        'https://vid.puffyan.us',
+      const corsProxies = [
+        `https://corsproxy.io/?${encodeURIComponent(`https://yewtu.be/latest_version?id=${youtubeId}&itag=140`)}`,
+        `https://corsproxy.io/?${encodeURIComponent(`https://invidious.nerdvpn.de/latest_version?id=${youtubeId}&itag=140`)}`,
+        `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://yewtu.be/latest_version?id=${youtubeId}&itag=140`)}`,
+        `${import.meta.env.VITE_API_URL || '/api'}/audio/download/${youtubeId}`,
       ];
 
-      for (const instance of invidiousInstances) {
+      let audioResponse: Response | null = null;
+      for (const proxyUrl of corsProxies) {
         try {
-          const res = await fetch(`${instance}/api/v1/videos/${youtubeId}`);
-          if (res.ok) {
-            const data = await res.json();
-            const adaptiveFormats = data?.adaptiveFormats;
-            if (adaptiveFormats && adaptiveFormats.length > 0) {
-              const audioOnly = adaptiveFormats.filter((f: any) => f.type?.includes('audio'));
-              if (audioOnly.length > 0) {
-                audioOnly.sort((a: any, b: any) => (parseInt(b.bitrate) || 0) - (parseInt(a.bitrate) || 0));
-                audioBlobUrl = audioOnly[0].url;
-                break;
-              }
-            }
+          const res = await fetch(proxyUrl);
+          if (res.ok && res.status === 200) {
+            audioResponse = res;
+            break;
           }
         } catch {
-          // Try next Invidious instance
+          // Try next proxy
         }
       }
 
-      if (!audioBlobUrl) {
-        audioBlobUrl = `${import.meta.env.VITE_API_URL || '/api'}/audio/download/${youtubeId}`;
+      if (!audioResponse) {
+        throw new Error('All CORS audio proxies failed');
       }
-
-      const audioResponse = await fetch(audioBlobUrl);
 
       if (!audioResponse.ok) {
         throw new Error(`Audio download failed: ${audioResponse.status}`);
