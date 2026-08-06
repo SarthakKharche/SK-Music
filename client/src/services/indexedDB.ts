@@ -77,8 +77,15 @@ class IndexedDBManager {
   }
 
   /**
-   * Get database instance
+   * Get database instance safely
    */
+  private async getDBSafe(): Promise<IDBPDatabase<MusicDB>> {
+    if (!this.db) {
+      await this.init();
+    }
+    return this.db!;
+  }
+
   private getDB(): IDBPDatabase<MusicDB> {
     if (!this.db) {
       throw new Error('Database not initialized. Call init() first.');
@@ -210,25 +217,33 @@ class IndexedDBManager {
    * Get cached audio
    */
   async getCachedAudio(trackId: string): Promise<CachedAudio | undefined> {
-    const db = this.getDB();
-    const audio = await db.get('audio', trackId);
-    
-    if (audio) {
-      // Update last accessed time
-      audio.lastAccessedAt = new Date().toISOString();
-      await db.put('audio', audio);
+    try {
+      const db = await this.getDBSafe();
+      const audio = await db.get('audio', trackId);
+      
+      if (audio) {
+        audio.lastAccessedAt = new Date().toISOString();
+        await db.put('audio', audio);
+      }
+      
+      return audio;
+    } catch (e) {
+      console.warn('[IndexedDB] getCachedAudio error:', e);
+      return undefined;
     }
-    
-    return audio;
   }
 
   /**
    * Check if audio is cached
    */
   async isAudioCached(trackId: string): Promise<boolean> {
-    const db = this.getDB();
-    const audio = await db.get('audio', trackId);
-    return !!audio;
+    try {
+      const db = await this.getDBSafe();
+      const audio = await db.get('audio', trackId);
+      return !!audio;
+    } catch {
+      return false;
+    }
   }
 
   /**
@@ -312,39 +327,36 @@ class IndexedDBManager {
   // ==================== LISTENING HISTORY ====================
 
   /**
-   * Add track to listening history
+   * Add track to listening history safely
    */
   async addToHistory(track: Track): Promise<void> {
-    const db = this.getDB();
-    const historyKey = 'listening_history';
-    
-    // Get existing history
-    const historyData = await db.get('metadata', historyKey);
-    const history: Array<{ track: Track; playedAt: string; playCount: number }> = historyData?.value || [];
-    
-    // Check if track already in history
-    const existingIndex = history.findIndex(h => h.track.id === track.id);
-    
-    if (existingIndex >= 0) {
-      // Update existing entry
-      history[existingIndex].playedAt = new Date().toISOString();
-      history[existingIndex].playCount = (history[existingIndex].playCount || 1) + 1;
-      // Move to front
-      const [entry] = history.splice(existingIndex, 1);
-      history.unshift(entry);
-    } else {
-      // Add new entry at the front
-      history.unshift({
-        track,
-        playedAt: new Date().toISOString(),
-        playCount: 1,
-      });
+    try {
+      const db = await this.getDBSafe();
+      const historyKey = 'listening_history';
+      
+      const historyData = await db.get('metadata', historyKey);
+      const history: Array<{ track: Track; playedAt: string; playCount: number }> = historyData?.value || [];
+      
+      const existingIndex = history.findIndex(h => h.track.id === track.id);
+      
+      if (existingIndex >= 0) {
+        history[existingIndex].playedAt = new Date().toISOString();
+        history[existingIndex].playCount = (history[existingIndex].playCount || 1) + 1;
+        const [entry] = history.splice(existingIndex, 1);
+        history.unshift(entry);
+      } else {
+        history.unshift({
+          track,
+          playedAt: new Date().toISOString(),
+          playCount: 1,
+        });
+      }
+      
+      const trimmedHistory = history.slice(0, 500);
+      await db.put('metadata', { key: historyKey, value: trimmedHistory });
+    } catch (e) {
+      console.warn('[IndexedDB] addToHistory error:', e);
     }
-    
-    // Keep only last 500 entries
-    const trimmedHistory = history.slice(0, 500);
-    
-    await db.put('metadata', { key: historyKey, value: trimmedHistory });
   }
 
   /**
