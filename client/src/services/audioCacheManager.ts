@@ -141,21 +141,30 @@ class AudioCacheManager {
         progress: 0,
       });
 
-      console.log('[OFFLINE] Fetching audio binary via EC2 download proxy:', youtubeId);
+      console.log('[OFFLINE] Fetching audio binary directly in browser:', youtubeId);
       
-      const token = localStorage.getItem('authToken');
-      const headers: Record<string, string> = {};
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
+      const streamMirrors = [
+        `https://inv.tux.pizza/latest_version?id=${youtubeId}&itag=140`,
+        `https://invidious.nerdvpn.de/latest_version?id=${youtubeId}&itag=140`,
+        `https://yewtu.be/latest_version?id=${youtubeId}&itag=140`,
+        `${import.meta.env.VITE_API_URL || '/api'}/audio/download/${youtubeId}`,
+      ];
+
+      let audioResponse: Response | null = null;
+      for (const mirrorUrl of streamMirrors) {
+        try {
+          const res = await fetch(mirrorUrl);
+          if (res.ok && res.status === 200) {
+            audioResponse = res;
+            break;
+          }
+        } catch (e) {
+          // Try next mirror
+        }
       }
 
-      const audioResponse = await fetch(`/api/audio/download/${youtubeId}`, {
-        headers,
-        credentials: 'include',
-      });
-
-      if (!audioResponse.ok) {
-        throw new Error(`Audio download failed: ${audioResponse.status}`);
+      if (!audioResponse) {
+        throw new Error('Audio download failed - no active stream mirrors');
       }
 
       // Get metadata from response headers
