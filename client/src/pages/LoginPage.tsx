@@ -11,8 +11,8 @@ const LoginPage: React.FC = () => {
     if (apiUrl) {
       return apiUrl.endsWith('/api') ? `${apiUrl}/auth/google` : `${apiUrl}/api/auth/google`;
     }
-    // Development: navigate directly to the backend to avoid Vite proxy issues with OAuth redirects
-    return 'http://localhost:5000/api/auth/google';
+    // Default to relative path /api/auth/google to work seamlessly with Vercel rewrites & dev proxy
+    return '/api/auth/google';
   };
 
   const handleGoogleLogin = async () => {
@@ -21,12 +21,14 @@ const LoginPage: React.FC = () => {
 
     const authUrl = getAuthUrl();
 
-    // First, check if the server is reachable
+    // Check health check endpoint
     try {
-      const healthUrl = authUrl.replace('/api/auth/google', '/health');
-      await fetch(healthUrl, { mode: 'cors' });
+      const healthUrl = authUrl.includes('/api/auth/google')
+        ? authUrl.replace('/api/auth/google', '/health')
+        : '/health';
+      await fetch(healthUrl);
     } catch {
-      setError('Cannot reach the server. Make sure the backend is running on port 5000.');
+      setError('Cannot reach the server. Make sure the backend on EC2 is running.');
       setLoading(false);
       return;
     }
