@@ -18,9 +18,14 @@ const LoginPage: React.FC = () => {
   const handleGoogleLogin = () => {
     setLoading(true);
     setError(null);
-    const authUrl = getAuthUrl();
-    console.log('Navigating to Auth URL:', authUrl);
-    window.location.href = authUrl;
+    const apiUrl = import.meta.env.VITE_API_URL;
+    let authUrl = '/api/auth/google';
+    if (apiUrl) {
+      const base = apiUrl.replace(/\/$/, '');
+      authUrl = base.endsWith('/api') ? `${base}/auth/google` : `${base}/api/auth/google`;
+    }
+    console.log('Redirecting to:', authUrl);
+    window.location.assign(authUrl);
   };
 
   return (
