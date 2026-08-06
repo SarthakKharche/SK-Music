@@ -150,7 +150,7 @@ router.get('/download/:youtubeId', async (req, res) => {
     const streamSources = [
       `https://invidious.nerdvpn.de/latest_version?id=${youtubeId}&itag=140`,
       `https://yewtu.be/latest_version?id=${youtubeId}&itag=140`,
-      `https://inv.tux.pizza/latest_version?id=${youtubeId}&itag=140`,
+      `https://invidious.jing.rocks/latest_version?id=${youtubeId}&itag=140`,
     ];
 
     for (const sourceUrl of streamSources) {
@@ -158,14 +158,15 @@ router.get('/download/:youtubeId', async (req, res) => {
         console.log(`[DOWNLOAD] Downloading stream from: ${sourceUrl}`);
         const streamRes = await axios.get(sourceUrl, {
           responseType: 'stream',
-          timeout: 10000,
+          timeout: 7000,
           headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
           },
         });
 
         if (streamRes.status >= 200 && streamRes.status < 300) {
-          res.setHeader('Content-Type', streamRes.headers['content-type'] || 'audio/mp4');
+          res.setHeader('Content-Type', 'audio/mp4');
+          res.setHeader('X-Audio-Format', 'mp4');
           if (streamRes.headers['content-length']) {
             res.setHeader('Content-Length', streamRes.headers['content-length']);
           }

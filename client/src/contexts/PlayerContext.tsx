@@ -369,7 +369,6 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
                   modestbranding: 1,
                   rel: 0,
                   showinfo: 0,
-                  origin: window.location.origin,
                 },
                 events: {
                   onReady: (event) => {
