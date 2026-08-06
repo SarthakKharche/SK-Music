@@ -19,6 +19,7 @@ const AuthCallback: React.FC = () => {
       }
 
       try {
+        localStorage.removeItem('authToken');
         await login(token);
         navigate('/');
       } catch (err) {

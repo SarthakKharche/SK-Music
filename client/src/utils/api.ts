@@ -35,9 +35,11 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Unauthorized - clear token and redirect to login
+      // Clear invalid token from storage without hard reloading page if already on login page
       localStorage.removeItem('authToken');
-      window.location.href = '/login';
+      if (window.location.pathname !== '/login' && window.location.pathname !== '/auth/callback') {
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }
