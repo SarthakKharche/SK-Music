@@ -43,11 +43,12 @@ app.use(cors({
     if (!origin) {
       return callback(null, true);
     }
-    // Allow all origins in development (supports Dev Tunnels, local IPs, etc.)
+    // Allow all origins in development
     if (process.env.NODE_ENV === 'development') {
       return callback(null, true);
     }
-    if (clientOrigins.includes(origin)) {
+    // Allow any vercel.app domain or listed client origins
+    if (origin.endsWith('.vercel.app') || clientOrigins.includes(origin)) {
       return callback(null, true);
     }
     return callback(new Error('Not allowed by CORS'));
