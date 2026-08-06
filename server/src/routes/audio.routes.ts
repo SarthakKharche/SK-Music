@@ -3,7 +3,6 @@ import { isAuthenticated } from '../middleware/auth.middleware';
 import { audioResolverService } from '../services/audio-resolver.service';
 import { existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
-import axios from 'axios';
 import type { AudioResolveRequest } from '../types/audio.types';
 
 // Temp directory for audio downloads
