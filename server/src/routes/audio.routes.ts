@@ -141,21 +141,24 @@ router.get('/download/:youtubeId', async (req, res) => {
       youtubeId = youtubeId.substring(3);
     }
 
-    console.log(`[DOWNLOAD] Attempting audio stream for: ${youtubeId}`);
+    console.log(`[DOWNLOAD] Attempting audio download stream for: ${youtubeId}`);
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Headers', '*');
+    
     const axios = (await import('axios')).default;
 
     const streamSources = [
       `https://invidious.nerdvpn.de/latest_version?id=${youtubeId}&itag=140`,
-      `https://invidious.drgns.space/latest_version?id=${youtubeId}&itag=140`,
-      `https://vid.puffyan.us/latest_version?id=${youtubeId}&itag=140`,
+      `https://yewtu.be/latest_version?id=${youtubeId}&itag=140`,
+      `https://inv.tux.pizza/latest_version?id=${youtubeId}&itag=140`,
     ];
 
     for (const sourceUrl of streamSources) {
       try {
-        console.log(`[DOWNLOAD] Trying stream source: ${sourceUrl}`);
+        console.log(`[DOWNLOAD] Downloading stream from: ${sourceUrl}`);
         const streamRes = await axios.get(sourceUrl, {
           responseType: 'stream',
-          timeout: 6000,
+          timeout: 10000,
           headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
           },
@@ -163,7 +166,6 @@ router.get('/download/:youtubeId', async (req, res) => {
 
         if (streamRes.status >= 200 && streamRes.status < 300) {
           res.setHeader('Content-Type', streamRes.headers['content-type'] || 'audio/mp4');
-          res.setHeader('Accept-Ranges', 'bytes');
           if (streamRes.headers['content-length']) {
             res.setHeader('Content-Length', streamRes.headers['content-length']);
           }
@@ -175,7 +177,7 @@ router.get('/download/:youtubeId', async (req, res) => {
       }
     }
 
-    return res.status(500).json({ error: 'Audio stream failed to load' });
+    return res.status(500).json({ error: 'Audio download stream failed' });
   } catch (error) {
     console.error('[DOWNLOAD] Error:', error instanceof Error ? error.message : error);
     if (!res.headersSent) {

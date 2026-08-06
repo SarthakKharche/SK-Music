@@ -141,29 +141,13 @@ class AudioCacheManager {
         progress: 0,
       });
 
-      console.log('[OFFLINE] Fetching audio stream blob for offline storage:', youtubeId);
+      console.log('[OFFLINE] Fetching audio stream blob via backend proxy:', youtubeId);
       
-      const streamUrls = [
-        `https://yewtu.be/latest_version?id=${youtubeId}&itag=140`,
-        `https://invidious.nerdvpn.de/latest_version?id=${youtubeId}&itag=140`,
-        `https://vid.puffyan.us/latest_version?id=${youtubeId}&itag=140`,
-      ];
+      const apiPrefix = import.meta.env.VITE_API_URL || '/api';
+      const audioResponse = await fetch(`${apiPrefix}/audio/download/${youtubeId}`);
 
-      let audioResponse: Response | null = null;
-      for (const url of streamUrls) {
-        try {
-          const res = await fetch(url);
-          if (res.ok) {
-            audioResponse = res;
-            break;
-          }
-        } catch {
-          // Try next mirror URL
-        }
-      }
-
-      if (!audioResponse || !audioResponse.ok) {
-        throw new Error('Offline audio stream unavailable');
+      if (!audioResponse.ok) {
+        throw new Error(`Download error: ${audioResponse.status}`);
       }
 
       // Get metadata from response headers
