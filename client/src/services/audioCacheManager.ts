@@ -85,20 +85,34 @@ class AudioCacheManager {
       return null;
     }
 
-    // Return high-speed public audio stream with automatic CDN failover
+    // Fetch high-speed CORS enabled MP3 audio stream from Cobalt API
     if (source.youtubeId) {
       console.log('Using YouTube source for:', track.name, source.youtubeId);
       localStorage.setItem(`youtube_${track.id}`, source.youtubeId);
       
-      const cdnMirrors = [
-        `https://invidious.nerdvpn.de/latest_version?id=${source.youtubeId}&itag=140`,
-        `https://invidious.drgns.space/latest_version?id=${source.youtubeId}&itag=140`,
-        `https://vid.puffyan.us/latest_version?id=${source.youtubeId}&itag=140`,
-        `https://invidious.flokinet.to/latest_version?id=${source.youtubeId}&itag=140`,
-      ];
+      try {
+        const cobaltRes = await fetch('https://api.cobalt.tools', {
+          method: 'POST',
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            url: `https://www.youtube.com/watch?v=${source.youtubeId}`,
+            downloadMode: 'audio',
+            audioFormat: 'mp3',
+          }),
+        });
+        const cobaltData = await cobaltRes.json();
+        if (cobaltData?.url) {
+          return cobaltData.url;
+        }
+      } catch (e) {
+        console.warn('Cobalt stream fetch failed, using fallback:', e);
+      }
 
-      // Return fast working mirror URL
-      return cdnMirrors[0];
+      // Fallback: Invidious audio stream URL
+      return `https://invidious.nerdvpn.de/latest_version?id=${source.youtubeId}&itag=140`;
     }
 
     // For direct audio URLs, cache in background
