@@ -150,9 +150,9 @@ class AudioCacheManager {
 
     let audioBlobUrl: string | null = null;
 
-    // 1. Try Vercel Serverless / EC2 Saavn resolution
+    // 1. Try EC2 Saavn resolution endpoint (CORS-free)
     try {
-      const saavnRes = await fetch(`/api/saavn-search?query=${query}`);
+      const saavnRes = await fetch(`/api/audio/saavn-search?query=${query}`);
       if (saavnRes.ok) {
         const saavnData = await saavnRes.json();
         if (saavnData?.url) {

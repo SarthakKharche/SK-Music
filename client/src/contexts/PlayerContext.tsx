@@ -448,7 +448,7 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           const parts = url.split(':');
           const query = parts[1];
           try {
-            const saavnRes = await fetch(`/api/saavn-search?query=${query}`);
+            const saavnRes = await fetch(`/api/audio/saavn-search?query=${query}`);
             if (saavnRes.ok) {
               const saavnData = await saavnRes.json();
               if (saavnData?.url) {
@@ -456,7 +456,7 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
               }
             }
           } catch {
-            // Fallback to CORS proxy
+            // Fallback
           }
         }
 

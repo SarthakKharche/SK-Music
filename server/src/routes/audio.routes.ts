@@ -13,6 +13,45 @@ if (!existsSync(TEMP_DIR)) {
 
 const router = Router();
 
+router.get('/saavn-search', async (req, res) => {
+  try {
+    const query = req.query.query as string;
+    if (!query) {
+      return res.status(400).json({ error: 'Missing query' });
+    }
+
+    const axios = (await import('axios')).default;
+    const cleanQuery = query.replace(/[\(\)\[\]"'\-_]/g, ' ').replace(/\s+/g, ' ').trim();
+    const encodedQuery = encodeURIComponent(cleanQuery);
+
+    const saavnEndpoints = [
+      `https://saavn.me/api/search/songs?query=${encodedQuery}`,
+      `https://jiosaavn-api-private-us.vercel.app/search/songs?query=${encodedQuery}`,
+      `https://saavn.dev/api/search/songs?query=${encodedQuery}`,
+    ];
+
+    for (const endpoint of saavnEndpoints) {
+      try {
+        const apiRes = await axios.get(endpoint, { timeout: 4000 });
+        const songs = apiRes.data?.data?.results || apiRes.data?.results;
+        if (songs && songs.length > 0 && songs[0].downloadUrl) {
+          const downloadUrls = songs[0].downloadUrl;
+          const highestQual = downloadUrls[downloadUrls.length - 1]?.url || downloadUrls[0]?.url;
+          if (highestQual) {
+            return res.json({ url: highestQual, song: songs[0] });
+          }
+        }
+      } catch (e) {
+        // Try next endpoint
+      }
+    }
+
+    return res.status(404).json({ error: 'Song stream not found' });
+  } catch (error) {
+    return res.status(500).json({ error: 'Saavn search failed' });
+  }
+});
+
 /**
  * POST /api/audio/resolve
  * Resolve audio source URL for a track
