@@ -195,27 +195,28 @@ router.get('/download/:youtubeId', async (req, res) => {
       directAudioUrl = `https://invidious.nerdvpn.de/latest_version?id=${youtubeId}&itag=140`;
     }
 
-    // Stream binary buffer back to client
+    // Stream audio binary directly to client with zero memory buffering
     try {
+      console.log(`[DOWNLOAD] Piping audio stream from CDN...`);
       const streamRes = await axios.get(directAudioUrl, {
-        responseType: 'arraybuffer',
-        timeout: 12000,
+        responseType: 'stream',
+        timeout: 10000,
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         },
       });
 
-      if (streamRes.status >= 200 && streamRes.status < 300 && streamRes.data) {
-        const buffer = Buffer.from(streamRes.data);
-        if (buffer.length > 20000) {
-          res.setHeader('Content-Type', 'audio/mp4');
-          res.setHeader('X-Audio-Format', 'mp4');
-          res.setHeader('Content-Length', buffer.length.toString());
-          return res.send(buffer);
+      if (streamRes.status >= 200 && streamRes.status < 300) {
+        res.setHeader('Content-Type', streamRes.headers['content-type'] || 'audio/mp4');
+        res.setHeader('X-Audio-Format', 'mp4');
+        if (streamRes.headers['content-length']) {
+          res.setHeader('Content-Length', streamRes.headers['content-length']);
         }
+        streamRes.data.pipe(res);
+        return;
       }
     } catch (err) {
-      console.warn(`[DOWNLOAD] Buffer fetch failed: ${err}`);
+      console.warn(`[DOWNLOAD] Direct stream pipe failed: ${err}`);
     }
 
     return res.status(500).json({ error: 'Audio download stream failed' });
