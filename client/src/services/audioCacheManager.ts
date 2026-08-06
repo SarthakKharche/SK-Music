@@ -141,30 +141,30 @@ class AudioCacheManager {
         progress: 0,
       });
 
-      console.log('[OFFLINE] Fetching audio binary stream via Cobalt API:', youtubeId);
+      console.log('[OFFLINE] Resolving audio stream URL for:', youtubeId);
       
       let audioBlobUrl: string | null = null;
 
-      try {
-        const res = await fetch('https://api.cobalt.tools/', {
-          method: 'POST',
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            url: `https://www.youtube.com/watch?v=${youtubeId}`,
-            downloadMode: 'audio',
-          }),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (data?.url) {
-            audioBlobUrl = data.url;
+      const pipedInstances = [
+        'https://pipedapi.kavin.rocks',
+        'https://pipedapi.adminforge.de',
+        'https://pipedapi.tokhmi.xyz',
+        'https://piped-api.garudalinux.org',
+      ];
+
+      for (const instance of pipedInstances) {
+        try {
+          const res = await fetch(`${instance}/streams/${youtubeId}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data?.audioStreams?.length > 0) {
+              audioBlobUrl = data.audioStreams[0].url;
+              break;
+            }
           }
+        } catch {
+          // Try next Piped instance
         }
-      } catch (e) {
-        console.warn('Cobalt API fetch error:', e);
       }
 
       if (!audioBlobUrl) {
