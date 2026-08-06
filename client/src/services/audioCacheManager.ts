@@ -137,8 +137,8 @@ class AudioCacheManager {
    */
   private async _downloadFromYouTube(track: Track): Promise<CachedAudio> {
     const cleanTitle = track.name.replace(/[\(\)\[\]"'\-_]/g, ' ').replace(/\s+/g, ' ').trim();
-    const artistName = track.artists?.[0]?.name || '';
-    const query = encodeURIComponent(`${cleanTitle} ${artistName}`);
+    const primaryArtist = track.artists?.[0]?.name?.split(',')[0]?.split('&')[0]?.trim() || '';
+    const query = encodeURIComponent(`${cleanTitle} ${primaryArtist}`);
 
     this.notifySyncStatus({
       trackId: track.id,

@@ -15,19 +15,26 @@ const router = Router();
 
 router.get('/saavn-search', async (req, res) => {
   try {
-    const query = req.query.query as string;
-    if (!query) {
+    const rawQuery = req.query.query as string;
+    if (!rawQuery) {
       return res.status(400).json({ error: 'Missing query' });
     }
 
     const axios = (await import('axios')).default;
-    const cleanQuery = query.replace(/[\(\)\[\]"'\-_]/g, ' ').replace(/\s+/g, ' ').trim();
-    const encodedQuery = encodeURIComponent(cleanQuery);
+    // Extract main song title and main primary artist only
+    const cleanQuery = rawQuery
+      .split(',')[0] // Take first artist before commas
+      .split('&')[0] // Take first artist before &
+      .replace(/[\(\)\[\]"'\-_]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    const songTitleOnly = cleanQuery.split(' ')[0] + ' ' + (cleanQuery.split(' ')[1] || '');
 
     const saavnEndpoints = [
-      `https://saavn.me/api/search/songs?query=${encodedQuery}`,
-      `https://jiosaavn-api-private-us.vercel.app/search/songs?query=${encodedQuery}`,
-      `https://saavn.dev/api/search/songs?query=${encodedQuery}`,
+      `https://saavn.me/api/search/songs?query=${encodeURIComponent(cleanQuery)}`,
+      `https://saavn.me/api/search/songs?query=${encodeURIComponent(songTitleOnly)}`,
+      `https://jiosaavn-api-private-us.vercel.app/search/songs?query=${encodeURIComponent(cleanQuery)}`,
     ];
 
     let directMp3Url: string | null = null;
