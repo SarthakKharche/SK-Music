@@ -141,44 +141,12 @@ class AudioCacheManager {
         progress: 0,
       });
 
-      console.log('[OFFLINE] Resolving audio stream via Piped API:', youtubeId);
+      console.log('[OFFLINE] Fetching audio binary via Vercel endpoint:', youtubeId);
       
-      const pipedInstances = [
-        'https://pipedapi.adminforge.de',
-        'https://pipedapi.kavin.rocks',
-        'https://pipedapi.tokhmi.xyz',
-        'https://pipedapi.mha.fi',
-        'https://api.piped.projectsegfau.lt',
-      ];
+      const audioResponse = await fetch(`/api/download?id=${youtubeId}`);
 
-      let audioBlobUrl: string | null = null;
-      for (const instance of pipedInstances) {
-        try {
-          const res = await fetch(`${instance}/streams/${youtubeId}`);
-          if (res.ok) {
-            const data = await res.json();
-            const audioStreams = data?.audioStreams;
-            if (audioStreams && audioStreams.length > 0) {
-              audioStreams.sort((a: any, b: any) => (b.bitrate || 0) - (a.bitrate || 0));
-              if (audioStreams[0]?.url) {
-                audioBlobUrl = audioStreams[0].url;
-                break;
-              }
-            }
-          }
-        } catch {
-          // Try next Piped instance
-        }
-      }
-
-      if (!audioBlobUrl) {
-        throw new Error('All audio download mirrors failed');
-      }
-
-      console.log('[OFFLINE] Fetching audio binary from:', audioBlobUrl.substring(0, 40));
-      const audioResponse = await fetch(audioBlobUrl);
       if (!audioResponse.ok) {
-        throw new Error(`Audio download error: ${audioResponse.status}`);
+        throw new Error(`Audio download failed: ${audioResponse.status}`);
       }
 
       // Get metadata from response headers
