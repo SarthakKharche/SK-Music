@@ -17,52 +17,37 @@ router.get('/saavn-search', async (req: Request, res: Response) => {
   try {
     const rawQuery = (req.query.query as string) || '';
     const trackId = (req.query.trackId as string) || rawQuery;
-    const youtubeId = trackId.startsWith('yt-') ? trackId.replace('yt-', '') : trackId;
+    let youtubeId = trackId.startsWith('yt-') ? trackId.replace('yt-', '') : trackId;
 
-    console.log(`[DOWNLOAD] Extracting 100% direct audio with yt-dlp for ID: ${youtubeId}, Query: ${rawQuery}`);
+    console.log(`[AUDIO DOWNLOAD] Resolving binary stream for ID: ${youtubeId}, Query: ${rawQuery}`);
 
-    const { exec } = await import('child_process');
-    const util = await import('util');
-    const execPromise = util.promisify(exec);
-
-    let streamUrl: string | null = null;
-
-    // 1. Try resolving via yt-dlp by YouTube ID
-    if (youtubeId && youtubeId.length === 11) {
-      try {
-        const { stdout } = await execPromise(`yt-dlp -f bestaudio -g "https://www.youtube.com/watch?v=${youtubeId}"`, { timeout: 12000 });
-        if (stdout && stdout.trim().startsWith('http')) {
-          streamUrl = stdout.trim().split('\n')[0];
-          console.log('[DOWNLOAD] yt-dlp resolved by YouTube ID!');
-        }
-      } catch (e) {
-        console.warn('[DOWNLOAD] yt-dlp by ID failed:', e);
+    // If trackId is not a 11-char YouTube ID, search YouTube for the videoId
+    if (!youtubeId || youtubeId.length !== 11) {
+      const searchRes = await audioResolverService.resolveAudioSources({
+        trackName: rawQuery,
+        artistName: '',
+      });
+      if (searchRes && searchRes.length > 0 && searchRes[0].youtubeId) {
+        youtubeId = searchRes[0].youtubeId;
       }
     }
 
-    // 2. Fallback: Search YouTube directly via yt-dlp with raw query
-    if (!streamUrl && rawQuery) {
-      const cleanSearch = rawQuery.replace(/[\(\)\[\]"'\-_]/g, ' ').replace(/\s+/g, ' ').trim();
-      try {
-        const { stdout } = await execPromise(`yt-dlp -f bestaudio -g "ytsearch1:${cleanSearch}"`, { timeout: 12000 });
-        if (stdout && stdout.trim().startsWith('http')) {
-          streamUrl = stdout.trim().split('\n')[0];
-          console.log('[DOWNLOAD] yt-dlp resolved by search query!');
-        }
-      } catch (e) {
-        console.warn('[DOWNLOAD] yt-dlp by search query failed:', e);
-      }
+    if (!youtubeId) {
+      return res.status(404).json({ error: 'Track not found' });
     }
 
-    if (!streamUrl) {
-      return res.status(404).json({ error: 'Failed to resolve audio stream with yt-dlp' });
+    const streamData = await audioResolverService.getDirectAudioUrl(youtubeId);
+    if (!streamData?.url) {
+      return res.status(404).json({ error: 'Stream URL resolution failed' });
     }
 
-    // Redirect browser directly to the high-quality audio CDN stream
-    return res.redirect(streamUrl);
+    // Redirect browser directly to audio CDN stream URL
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Headers', '*');
+    return res.redirect(streamData.url);
   } catch (error) {
-    console.error('yt-dlp download error:', error);
-    return res.status(500).json({ error: 'yt-dlp download failed' });
+    console.error('Audio download error:', error);
+    return res.status(500).json({ error: 'Audio download failed' });
   }
 });
 
