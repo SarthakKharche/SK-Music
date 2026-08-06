@@ -221,7 +221,8 @@ router.get('/youtube/:videoId', isAuthenticated, async (req, res) => {
  */
 router.get('/stream/:trackId', async (req, res) => {
   try {
-    let { youtubeId } = req.params;
+    const { trackId } = req.params;
+    let youtubeId = trackId;
     
     if (!youtubeId) {
       return res.status(400).json({ error: 'YouTube ID is required' });
