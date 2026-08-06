@@ -56,32 +56,43 @@ router.get('/saavn-search', async (req, res) => {
       }
     }
 
-    // 2. If Saavn search misses (e.g. YouTube Remixes), resolve audio stream via Piped API backend
+    // 2. If Saavn search misses (e.g. YouTube Remixes), execute yt-dlp / Piped fallback
     if (!directMp3Url) {
       const trackId = req.query.trackId as string || rawQuery;
       const youtubeId = trackId.startsWith('yt-') ? trackId.replace('yt-', '') : trackId;
-      console.log(`[DOWNLOAD] Saavn search missed, trying Piped API fallback for YouTube ID: ${youtubeId}`);
+      console.log(`[DOWNLOAD] Saavn search missed, extracting YouTube ID via yt-dlp / Piped: ${youtubeId}`);
       
-      const pipedInstances = [
-        'https://pipedapi.adminforge.de',
-        'https://pipedapi.kavin.rocks',
-        'https://pipedapi.tokhmi.xyz',
-      ];
+      const { exec } = await import('child_process');
+      const util = await import('util');
+      const execPromise = util.promisify(exec);
 
-      for (const instance of pipedInstances) {
-        try {
-          const pipedRes = await axios.get(`${instance}/streams/${youtubeId}`, { timeout: 5000 });
-          const audioStreams = pipedRes.data?.audioStreams;
-          if (audioStreams && audioStreams.length > 0) {
-            audioStreams.sort((a: any, b: any) => (b.bitrate || 0) - (a.bitrate || 0));
-            if (audioStreams[0]?.url) {
-              directMp3Url = audioStreams[0].url;
-              console.log(`[DOWNLOAD] Resolved Piped stream URL on EC2`);
-              break;
+      try {
+        const { stdout } = await execPromise(`yt-dlp -f bestaudio -g "https://www.youtube.com/watch?v=${youtubeId}"`, { timeout: 8000 });
+        if (stdout && stdout.trim().startsWith('http')) {
+          directMp3Url = stdout.trim().split('\n')[0];
+          console.log('[DOWNLOAD] Resolved direct audio stream via yt-dlp!');
+        }
+      } catch (e) {
+        console.warn('[DOWNLOAD] yt-dlp fallback failed, trying Piped API:', e);
+        const pipedInstances = [
+          'https://pipedapi.adminforge.de',
+          'https://pipedapi.kavin.rocks',
+          'https://pipedapi.tokhmi.xyz',
+        ];
+
+        for (const instance of pipedInstances) {
+          try {
+            const pipedRes = await axios.get(`${instance}/streams/${youtubeId}`, { timeout: 5000 });
+            const audioStreams = pipedRes.data?.audioStreams;
+            if (audioStreams && audioStreams.length > 0) {
+              audioStreams.sort((a: any, b: any) => (b.bitrate || 0) - (a.bitrate || 0));
+              if (audioStreams[0]?.url) {
+                directMp3Url = audioStreams[0].url;
+                console.log(`[DOWNLOAD] Resolved Piped stream URL on EC2`);
+                break;
+              }
             }
-          }
-        } catch (e) {
-          // Try next Piped mirror
+          } catch {}
         }
       }
     }
