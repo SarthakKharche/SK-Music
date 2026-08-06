@@ -145,92 +145,71 @@ router.get('/download/:youtubeId', async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Headers', '*');
     
+    const { spawn } = await import('child_process');
     const axios = (await import('axios')).default;
 
-    let audioStreamUrl: string | null = null;
+    // 1. First try yt-dlp direct audio stdout stream (Fastest & most reliable)
+    try {
+      const ytdlp = spawn('yt-dlp', [
+        '-f', 'ba/b[ext=m4a]/b',
+        '--no-playlist',
+        '--no-warnings',
+        '-o', '-',
+        `https://www.youtube.com/watch?v=${youtubeId}`
+      ]);
 
-    // 1. Resolve direct audio stream from Cobalt API
+      let headersSent = false;
+
+      ytdlp.stdout.on('data', (chunk) => {
+        if (!headersSent) {
+          headersSent = true;
+          res.setHeader('Content-Type', 'audio/mp4');
+          res.setHeader('X-Audio-Format', 'mp4');
+        }
+        res.write(chunk);
+      });
+
+      ytdlp.stdout.on('end', () => {
+        if (headersSent) {
+          res.end();
+        }
+      });
+
+      ytdlp.on('error', (err) => {
+        console.warn('[DOWNLOAD] yt-dlp process error:', err);
+      });
+
+      // Give yt-dlp 1.5 seconds to start sending audio chunks
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      if (headersSent) {
+        return;
+      }
+      ytdlp.kill();
+    } catch (e) {
+      console.warn('[DOWNLOAD] yt-dlp spawn failed, using Cobalt fallback:', e);
+    }
+
+    // 2. Cobalt API Fallback
     try {
       const cobaltRes = await axios.post(
         'https://api.cobalt.tools',
-        {
-          url: `https://www.youtube.com/watch?v=${youtubeId}`,
-          downloadMode: 'audio',
-          audioFormat: 'mp3',
-        },
-        {
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-          },
-          timeout: 7000,
-        }
+        { url: `https://www.youtube.com/watch?v=${youtubeId}`, downloadMode: 'audio' },
+        { headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, timeout: 5000 }
       );
-
       if (cobaltRes.data?.url) {
-        audioStreamUrl = cobaltRes.data.url;
-        console.log(`[DOWNLOAD] Cobalt stream URL resolved successfully`);
-      }
-    } catch (cobaltErr) {
-      console.warn(`[DOWNLOAD] Cobalt API resolution failed: ${cobaltErr}`);
-    }
-
-    // 2. Fallback to Piped API
-    if (!audioStreamUrl) {
-      const pipedInstances = [
-        'https://pipedapi.adminforge.de',
-        'https://pipedapi.kavin.rocks',
-        'https://pipedapi.mha.fi',
-      ];
-
-      for (const instance of pipedInstances) {
-        try {
-          const pipedRes = await axios.get(`${instance}/streams/${youtubeId}`, { timeout: 4000 });
-          const audioStreams = pipedRes.data?.audioStreams;
-          if (audioStreams && audioStreams.length > 0) {
-            audioStreams.sort((a: any, b: any) => (b.bitrate || 0) - (a.bitrate || 0));
-            if (audioStreams[0]?.url) {
-              audioStreamUrl = audioStreams[0].url;
-              console.log(`[DOWNLOAD] Resolved Piped stream URL`);
-              break;
-            }
-          }
-        } catch {
-          // Try next Piped mirror
+        const streamRes = await axios.get(cobaltRes.data.url, { responseType: 'stream', timeout: 10000 });
+        if (streamRes.status >= 200 && streamRes.status < 300) {
+          res.setHeader('Content-Type', 'audio/mp3');
+          res.setHeader('X-Audio-Format', 'mp3');
+          streamRes.data.pipe(res);
+          return;
         }
       }
+    } catch (e) {
+      console.warn('[DOWNLOAD] Cobalt fallback failed:', e);
     }
 
-    if (!audioStreamUrl) {
-      return res.status(500).json({ error: 'Failed to resolve audio stream URL' });
-    }
-
-    // Stream audio binary directly to client
-    try {
-      console.log(`[DOWNLOAD] Piping audio stream to client...`);
-      const streamRes = await axios.get(audioStreamUrl, {
-        responseType: 'stream',
-        timeout: 15000,
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Referer': 'https://www.youtube.com/',
-        },
-      });
-
-      if (streamRes.status >= 200 && streamRes.status < 300) {
-        res.setHeader('Content-Type', 'audio/mp3');
-        res.setHeader('X-Audio-Format', 'mp3');
-        if (streamRes.headers['content-length']) {
-          res.setHeader('Content-Length', streamRes.headers['content-length']);
-        }
-        streamRes.data.pipe(res);
-        return;
-      }
-    } catch (err) {
-      console.warn(`[DOWNLOAD] Stream pipe failed: ${err}`);
-    }
-
-    return res.status(500).json({ error: 'Audio download stream failed' });
+    return res.status(500).json({ error: 'Audio download failed' });
   } catch (error) {
     console.error('[DOWNLOAD] Error:', error instanceof Error ? error.message : error);
     if (!res.headersSent) {
