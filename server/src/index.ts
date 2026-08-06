@@ -78,8 +78,13 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
-// Rate limiting
-app.use('/api', rateLimiter);
+// Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/spotify', rateLimiter, spotifyRoutes);
+app.use('/api/user', rateLimiter, userRoutes);
+app.use('/api/audio', rateLimiter, audioRoutes);
+app.use('/api/made-for-you', rateLimiter, madeForYouRoutes);
+app.use('/api/youtube-music', rateLimiter, youtubeMusicRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
@@ -93,13 +98,7 @@ app.get('/api/test', (req, res) => {
   res.json({ message: 'API is working', timestamp: new Date().toISOString() });
 });
 
-// Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/spotify', spotifyRoutes);
-app.use('/api/user', userRoutes);
-app.use('/api/audio', audioRoutes);
-app.use('/api/made-for-you', madeForYouRoutes);
-app.use('/api/youtube-music', youtubeMusicRoutes);
+// Routes mounted above
 
 // Handle uncaught errors
 process.on('uncaughtException', (error) => {
