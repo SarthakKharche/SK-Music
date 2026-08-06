@@ -52,25 +52,14 @@ const LoginPage: React.FC = () => {
         </div>
 
         {/* Login Button */}
-        <button
-          onClick={handleGoogleLogin}
-          disabled={loading}
+        <a
+          href="/api/auth/google"
           className="w-full bg-white text-spotify-black font-semibold py-3 px-6 rounded-full 
-                     hover:bg-gray-100 transition-colors flex items-center justify-center gap-3
-                     disabled:opacity-60 disabled:cursor-not-allowed"
+                     hover:bg-gray-100 transition-colors flex items-center justify-center gap-3"
         >
-          {loading ? (
-            <>
-              <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-spotify-black"></div>
-              <span>Connecting...</span>
-            </>
-          ) : (
-            <>
-              <FcGoogle size={24} />
-              <span>Continue with Google</span>
-            </>
-          )}
-        </button>
+          <FcGoogle size={24} />
+          <span>Continue with Google</span>
+        </a>
 
         {/* Error message */}
         {error && (
