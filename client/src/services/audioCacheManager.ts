@@ -120,8 +120,9 @@ class AudioCacheManager {
 
     console.log('[OFFLINE] Starting background download for offline:', track.name);
 
-    const downloadPromise = this._downloadFromYouTube(track, youtubeId);
-    const downloadPromise = this._downloadFromYouTube(track);
+    const downloadPromise = (async () => {
+      await this._downloadFromYouTube(track);
+    })();
     this.downloadQueue.set(track.id, downloadPromise);
 
     try {
@@ -247,7 +248,7 @@ class AudioCacheManager {
       }
 
       // Call the internal downloader directly to avoid queue key conflicts
-      await this._downloadFromYouTube(track, youtubeId);
+      await this._downloadFromYouTube(track);
     })();
 
     this.downloadQueue.set(trackId, downloadPromise);

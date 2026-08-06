@@ -426,61 +426,64 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         return;
       }
 
-      // Regular HTML5 / Cached Blob audio playback    // Set track and playing state
-    setCurrentTrack(track);
-    setIsPlaying(true);
+      // Regular HTML5 / Cached Blob audio playback
+      setState((prev) => ({
+        ...prev,
+        currentTrack: track,
+        isPlaying: true,
+      }));
 
-    try {
-      // 1. Get audio URL (IndexedDB offline blob or saavn: query)
-      let url = await audioCacheManager.getAudioUrl(track);
+      try {
+        // 1. Get audio URL (IndexedDB offline blob or saavn: query)
+        let url = await audioCacheManager.getAudioUrl(track);
 
-      if (!url) {
-        console.warn('No audio URL found for track');
-        setIsPlaying(false);
-        return;
-      }
+        if (!url) {
+          console.warn('No audio URL found for track');
+          setState((prev) => ({ ...prev, isPlaying: false }));
+          return;
+        }
 
-      // If instant saavn query, resolve direct 320kbps CDN link (<20ms)
-      if (url.startsWith('saavn:')) {
-        const parts = url.split(':');
-        const query = parts[1];
-        try {
-          const saavnRes = await fetch(`https://saavn.dev/api/search/songs?query=${query}`);
-          if (saavnRes.ok) {
-            const saavnData = await saavnRes.json();
-            const songs = saavnData?.data?.results;
-            if (songs && songs.length > 0 && songs[0].downloadUrl) {
-              const downloadUrls = songs[0].downloadUrl;
-              const highestQual = downloadUrls[downloadUrls.length - 1]?.url || downloadUrls[0]?.url;
-              if (highestQual) {
-                url = highestQual;
+        // If instant saavn query, resolve direct 320kbps CDN link (<20ms)
+        if (url.startsWith('saavn:')) {
+          const parts = url.split(':');
+          const query = parts[1];
+          try {
+            const saavnRes = await fetch(`https://saavn.dev/api/search/songs?query=${query}`);
+            if (saavnRes.ok) {
+              const saavnData = await saavnRes.json();
+              const songs = saavnData?.data?.results;
+              if (songs && songs.length > 0 && songs[0].downloadUrl) {
+                const downloadUrls = songs[0].downloadUrl;
+                const highestQual = downloadUrls[downloadUrls.length - 1]?.url || downloadUrls[0]?.url;
+                if (highestQual) {
+                  url = highestQual;
+                }
               }
             }
+          } catch {
+            // Fallback to youtube
           }
-        } catch {
-          // Fallback to youtube
         }
-      }
 
-      // Play via instant HTML5 Audio
-      setIsYouTube(false);
-      if (youtubePlayerRef.current && typeof youtubePlayerRef.current.pauseVideo === 'function') {
-        try { youtubePlayerRef.current.pauseVideo(); } catch {}
-      }
-      if (audioRef.current) {
-        audioRef.current.src = url;
-        audioRef.current.load();
-        const playPromise = audioRef.current.play();
-        if (playPromise !== undefined) {
-          playPromise.catch((err) => {
-            console.warn('HTML5 audio play error:', err);
-          });
+        // Play via instant HTML5 Audio
+        setIsYouTube(false);
+        if (youtubePlayerRef.current && typeof youtubePlayerRef.current.pauseVideo === 'function') {
+          try { youtubePlayerRef.current.pauseVideo(); } catch {}
         }
+        if (audioRef.current && url) {
+          audioRef.current.src = url;
+          audioRef.current.load();
+          const playPromise = audioRef.current.play();
+          if (playPromise !== undefined) {
+            playPromise.catch((err) => {
+              console.warn('HTML5 audio play error:', err);
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Failed to play track:', error);
+        setState((prev) => ({ ...prev, isPlaying: false }));
       }
-    } catch (error) {
-      console.error('Failed to play track:', error);
-      setIsPlaying(false);
-    }
       
       if (timeUpdateIntervalRef.current) {
         clearInterval(timeUpdateIntervalRef.current);
