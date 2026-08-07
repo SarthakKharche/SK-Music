@@ -35,7 +35,8 @@ router.get('/offline-preferences', isAuthenticated, async (req, res) => {
  */
 router.post('/offline-preferences', isAuthenticated, async (req, res) => {
   try {
-    const { trackIds, isOfflinePreferred } = req.body;
+    const { trackIds, track, isOfflinePreferred } = req.body;
+    const user = req.user as User;
     const db = getFirestore();
 
     if (!Array.isArray(trackIds)) {
@@ -45,11 +46,23 @@ router.post('/offline-preferences', isAuthenticated, async (req, res) => {
     const batch = db.batch();
 
     for (const trackId of trackIds) {
-      const trackRef = db.collection('tracks').doc(trackId);
-      batch.set(trackRef, {
-        isOfflinePreferred,
+      const trackRef = db.collection('tracks').doc(`${user.uid}_${trackId}`);
+      const payload: any = {
+        id: trackId,
+        userId: user.uid,
+        isOfflinePreferred: isOfflinePreferred ?? true,
         updatedAt: new Date().toISOString(),
-      }, { merge: true });
+      };
+
+      if (track) {
+        payload.name = track.name;
+        payload.artists = track.artists;
+        payload.album = track.album;
+        payload.durationMs = track.durationMs;
+        payload.spotifyUrl = track.spotifyUrl;
+      }
+
+      batch.set(trackRef, payload, { merge: true });
     }
 
     await batch.commit();

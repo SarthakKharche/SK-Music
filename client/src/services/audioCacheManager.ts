@@ -269,6 +269,7 @@ class AudioCacheManager {
     try {
       await api.post('/user/offline-preferences', {
         trackIds: [track.id],
+        track: updatedTrack,
         isOfflinePreferred: true,
       });
     } catch (syncErr) {
