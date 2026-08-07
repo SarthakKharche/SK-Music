@@ -111,22 +111,36 @@ router.get('/saavn-search', async (req: Request, res: Response) => {
         }
       }
     } catch (jioErr) {
-      console.warn('[AUDIO DOWNLOAD] JioSaavn CDN stream failed, trying yt-dlp fallback:', jioErr instanceof Error ? jioErr.message : jioErr);
+      console.warn('[AUDIO DOWNLOAD] JioSaavn CDN stream failed:', jioErr instanceof Error ? jioErr.message : jioErr);
     }
 
-    // Method 2: Direct Invidious Audio CDN Stream (No bot blocks, 0.2s response)
+    // Method 2: Ensure YouTube ID is resolved if missing
+    if (!youtubeId || youtubeId.length !== 11) {
+      try {
+        const searchSources = await audioResolverService.resolveAudioSources({
+          trackName: rawQuery || trackId,
+          artistName: '',
+        });
+        if (searchSources && searchSources[0]?.youtubeId) {
+          youtubeId = searchSources[0].youtubeId;
+        }
+      } catch {}
+    }
+
+    // Method 3: Direct Audio CDN Stream (Invidious / Piped / Cobalt)
     if (youtubeId && youtubeId.length === 11) {
-      const invidiousMirrors = [
+      const mirrors = [
         `https://inv.tux.pizza/latest_version?id=${youtubeId}&itag=140`,
         `https://invidious.drgns.space/latest_version?id=${youtubeId}&itag=140`,
         `https://yt.artemislena.eu/latest_version?id=${youtubeId}&itag=140`,
         `https://yewtu.be/latest_version?id=${youtubeId}&itag=140`,
+        `https://pipedapi.kavin.rocks/streams/${youtubeId}`,
       ];
 
-      for (const streamUrl of invidiousMirrors) {
+      for (const streamUrl of mirrors) {
         try {
-          console.log(`[AUDIO DOWNLOAD] Attempting Invidious CDN audio stream: ${streamUrl}`);
-          const invRes = await axios.get(streamUrl, {
+          console.log(`[AUDIO DOWNLOAD] Attempting audio stream mirror: ${streamUrl}`);
+          const streamRes = await axios.get(streamUrl, {
             responseType: 'stream',
             timeout: 10000,
             headers: {
@@ -134,15 +148,15 @@ router.get('/saavn-search', async (req: Request, res: Response) => {
             },
           });
 
-          if (invRes.status >= 200 && invRes.status < 300) {
+          if (streamRes.status >= 200 && streamRes.status < 300) {
             res.setHeader('Content-Type', 'audio/mp4');
-            if (invRes.headers['content-length']) {
-              res.setHeader('Content-Length', invRes.headers['content-length']);
+            if (streamRes.headers['content-length']) {
+              res.setHeader('Content-Length', streamRes.headers['content-length']);
             }
-            return invRes.data.pipe(res);
+            return streamRes.data.pipe(res);
           }
         } catch (invErr) {
-          console.warn(`[AUDIO DOWNLOAD] Invidious CDN mirror failed: ${streamUrl}`);
+          console.warn(`[AUDIO DOWNLOAD] Stream mirror failed: ${streamUrl}`);
         }
       }
     }
