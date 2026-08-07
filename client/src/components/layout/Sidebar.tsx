@@ -151,161 +151,168 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => {
             )}
           </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 px-3 py-4 space-y-2 overflow-y-auto">
-          <NavLink
-            to="/"
-            className={({ isActive }) =>
-              `group flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
-                isActive
-                  ? 'bg-white/10 text-white shadow-[0_10px_30px_rgba(0,0,0,0.25)] border border-white/10'
-                  : 'text-white/60 hover:text-white hover:bg-white/5 border border-transparent'
-              }`
-            }
-          >
-            <FiHome size={18} />
-            <span className="font-semibold">Home</span>
-            <span className="ml-auto h-2 w-2 rounded-full bg-spotify-green/60 opacity-0 group-hover:opacity-100 transition" />
-          </NavLink>
-
-          <NavLink
-            to="/youtube-music"
-            className={({ isActive }) =>
-              `group flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
-                isActive
-                  ? 'bg-red-600/20 text-white shadow-[0_10px_30px_rgba(239,68,68,0.15)] border border-red-500/20'
-                  : 'text-white/60 hover:text-white hover:bg-white/5 border border-transparent'
-              }`
-            }
-          >
-            <FiMusic size={18} className="text-red-500" />
-            <span className="font-semibold text-white/90 group-hover:text-white">YT Music Home</span>
-            <span className="ml-auto h-2 w-2 rounded-full bg-red-500 opacity-0 group-hover:opacity-100 transition" />
-          </NavLink>
-
-          <NavLink
-            to="/search"
-            className={({ isActive }) =>
-              `group flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
-                isActive
-                  ? 'bg-white/10 text-white shadow-[0_10px_30px_rgba(0,0,0,0.25)] border border-white/10'
-                  : 'text-white/60 hover:text-white hover:bg-white/5 border border-transparent'
-              }`
-            }
-          >
-            <FiSearch size={18} />
-            <span className="font-semibold">Search</span>
-            <span className="ml-auto h-2 w-2 rounded-full bg-cyan-300/70 opacity-0 group-hover:opacity-100 transition" />
-          </NavLink>
-
-          <NavLink
-            to="/offline"
-            className={({ isActive }) =>
-              `group flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
-                isActive
-                  ? 'bg-white/10 text-white shadow-[0_10px_30px_rgba(0,0,0,0.25)] border border-white/10'
-                  : 'text-white/60 hover:text-white hover:bg-white/5 border border-transparent'
-              }`
-            }
-          >
-            <FiDownload size={18} />
-            <span className="font-semibold">Offline</span>
-            <span className="ml-auto h-2 w-2 rounded-full bg-amber-300/70 opacity-0 group-hover:opacity-100 transition" />
-          </NavLink>
-
-          <NavLink
-            to="/settings"
-            className={({ isActive }) =>
-              `group flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
-                isActive
-                  ? 'bg-white/10 text-white shadow-[0_10px_30px_rgba(0,0,0,0.25)] border border-white/10'
-                  : 'text-white/60 hover:text-white hover:bg-white/5 border border-transparent'
-              }`
-            }
-          >
-            <FiSettings size={18} />
-            <span className="font-semibold">Settings</span>
-            <span className="ml-auto h-2 w-2 rounded-full bg-purple-300/70 opacity-0 group-hover:opacity-100 transition" />
-          </NavLink>
-
-          {/* Divider */}
-          <div className="border-t border-white/5 my-4" />
-
-          {/* Playlists */}
-          <div className="px-3 flex items-center justify-between text-xs uppercase tracking-[0.18em] text-white/50">
-            <h3 className="font-semibold">Playlists</h3>
-            <button 
-              onClick={handleCreatePlaylist}
-              className="p-1 rounded hover:bg-white/10 text-white/60 hover:text-white transition-colors cursor-pointer"
-              title="Create Playlist"
-            >
-              <FiPlus size={14} />
-            </button>
-          </div>
-
-          <NavLink
-            to="/playlist/custom_liked_songs"
-            className={({ isActive }) =>
-              `group flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 ${
-                isActive
-                  ? 'bg-emerald-500/20 text-white border border-emerald-500/30 shadow-[0_10px_30px_rgba(16,185,129,0.15)]'
-                  : 'text-white/70 hover:text-white hover:bg-white/5 border border-transparent'
-              }`
-            }
-          >
-            <div className="w-5 h-5 rounded-md bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center text-white shadow-sm">
-              <FiHeart size={12} fill="white" />
-            </div>
-            <span className="font-semibold text-sm">Liked Songs</span>
-          </NavLink>
-
-          {playlists.filter(p => p.id !== 'custom_liked_songs').map((playlist) => (
+          {/* Navigation */}
+          <nav className="flex-1 px-3 py-4 space-y-2 overflow-y-auto">
             <NavLink
-              key={playlist.id}
-              to={`/playlist/${playlist.id}`}
+              to="/"
+              onClick={onClose}
               className={({ isActive }) =>
-                `group flex items-center gap-3 px-4 py-2 rounded-lg text-sm transition-all duration-150 ${
+                `group flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
                   isActive
-                    ? 'bg-white/10 text-white border border-white/10'
+                    ? 'bg-white/10 text-white shadow-[0_10px_30px_rgba(0,0,0,0.25)] border border-white/10'
                     : 'text-white/60 hover:text-white hover:bg-white/5 border border-transparent'
                 }`
               }
             >
-              <span className="truncate">{playlist.name}</span>
-              <span className="ml-auto text-[10px] uppercase tracking-[0.2em] text-white/40 group-hover:text-white/60">Play</span>
+              <FiHome size={18} />
+              <span className="font-semibold">Home</span>
+              <span className="ml-auto h-2 w-2 rounded-full bg-spotify-green/60 opacity-0 group-hover:opacity-100 transition" />
             </NavLink>
-          ))}
-        </nav>
 
-        {/* User Profile */}
-        <div className="p-4 border-t border-white/5 bg-white/5">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              {user?.picture && (
-                <img
-                  src={user.picture}
-                  alt={user.name}
-                  className="w-9 h-9 rounded-xl object-cover border border-white/10"
-                />
-              )}
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-white truncate">
-                  {user?.name}
-                </p>
-                <p className="text-[11px] text-white/50">Premium listener</p>
-              </div>
-            </div>
-            <button
-              onClick={handleLogout}
-              className="p-2 rounded-lg bg-white/5 text-white/60 hover:text-white hover:bg-white/10 transition-colors"
-              title="Logout"
+            <NavLink
+              to="/youtube-music"
+              onClick={onClose}
+              className={({ isActive }) =>
+                `group flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
+                  isActive
+                    ? 'bg-red-600/20 text-white shadow-[0_10px_30px_rgba(239,68,68,0.15)] border border-red-500/20'
+                    : 'text-white/60 hover:text-white hover:bg-white/5 border border-transparent'
+                }`
+              }
             >
-              <FiLogOut size={18} />
-            </button>
+              <FiMusic size={18} className="text-red-500" />
+              <span className="font-semibold text-white/90 group-hover:text-white">YT Music Home</span>
+              <span className="ml-auto h-2 w-2 rounded-full bg-red-500 opacity-0 group-hover:opacity-100 transition" />
+            </NavLink>
+
+            <NavLink
+              to="/search"
+              onClick={onClose}
+              className={({ isActive }) =>
+                `group flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
+                  isActive
+                    ? 'bg-white/10 text-white shadow-[0_10px_30px_rgba(0,0,0,0.25)] border border-white/10'
+                    : 'text-white/60 hover:text-white hover:bg-white/5 border border-transparent'
+                }`
+              }
+            >
+              <FiSearch size={18} />
+              <span className="font-semibold">Search</span>
+              <span className="ml-auto h-2 w-2 rounded-full bg-cyan-300/70 opacity-0 group-hover:opacity-100 transition" />
+            </NavLink>
+
+            <NavLink
+              to="/offline"
+              onClick={onClose}
+              className={({ isActive }) =>
+                `group flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
+                  isActive
+                    ? 'bg-white/10 text-white shadow-[0_10px_30px_rgba(0,0,0,0.25)] border border-white/10'
+                    : 'text-white/60 hover:text-white hover:bg-white/5 border border-transparent'
+                }`
+              }
+            >
+              <FiDownload size={18} />
+              <span className="font-semibold">Offline</span>
+              <span className="ml-auto h-2 w-2 rounded-full bg-amber-300/70 opacity-0 group-hover:opacity-100 transition" />
+            </NavLink>
+
+            <NavLink
+              to="/settings"
+              onClick={onClose}
+              className={({ isActive }) =>
+                `group flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
+                  isActive
+                    ? 'bg-white/10 text-white shadow-[0_10px_30px_rgba(0,0,0,0.25)] border border-white/10'
+                    : 'text-white/60 hover:text-white hover:bg-white/5 border border-transparent'
+                }`
+              }
+            >
+              <FiSettings size={18} />
+              <span className="font-semibold">Settings</span>
+              <span className="ml-auto h-2 w-2 rounded-full bg-purple-300/70 opacity-0 group-hover:opacity-100 transition" />
+            </NavLink>
+
+            {/* Divider */}
+            <div className="border-t border-white/5 my-4" />
+
+            {/* Playlists */}
+            <div className="px-3 flex items-center justify-between text-xs uppercase tracking-[0.18em] text-white/50">
+              <h3 className="font-semibold">Playlists</h3>
+              <button 
+                onClick={handleCreatePlaylist}
+                className="p-1 rounded hover:bg-white/10 text-white/60 hover:text-white transition-colors cursor-pointer"
+                title="Create Playlist"
+              >
+                <FiPlus size={14} />
+              </button>
+            </div>
+
+            <NavLink
+              to="/playlist/custom_liked_songs"
+              onClick={onClose}
+              className={({ isActive }) =>
+                `group flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 ${
+                  isActive
+                    ? 'bg-emerald-500/20 text-white border border-emerald-500/30 shadow-[0_10px_30px_rgba(16,185,129,0.15)]'
+                    : 'text-white/70 hover:text-white hover:bg-white/5 border border-transparent'
+                }`
+              }
+            >
+              <div className="w-5 h-5 rounded-md bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center text-white shadow-sm">
+                <FiHeart size={12} fill="white" />
+              </div>
+              <span className="font-semibold text-sm">Liked Songs</span>
+            </NavLink>
+
+            {playlists.filter(p => p.id !== 'custom_liked_songs').map((playlist) => (
+              <NavLink
+                key={playlist.id}
+                to={`/playlist/${playlist.id}`}
+                onClick={onClose}
+                className={({ isActive }) =>
+                  `group flex items-center gap-3 px-4 py-2 rounded-lg text-sm transition-all duration-150 ${
+                    isActive
+                      ? 'bg-white/10 text-white border border-white/10'
+                      : 'text-white/60 hover:text-white hover:bg-white/5 border border-transparent'
+                  }`
+                }
+              >
+                <span className="truncate">{playlist.name}</span>
+                <span className="ml-auto text-[10px] uppercase tracking-[0.2em] text-white/40 group-hover:text-white/60">Play</span>
+              </NavLink>
+            ))}
+          </nav>
+
+          {/* User Profile */}
+          <div className="p-4 border-t border-white/5 bg-white/5">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                {user?.picture && (
+                  <img
+                    src={user.picture}
+                    alt={user.name}
+                    className="w-9 h-9 rounded-xl object-cover border border-white/10"
+                  />
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-white truncate">
+                    {user?.name}
+                  </p>
+                  <p className="text-[11px] text-white/50">Premium listener</p>
+                </div>
+              </div>
+              <button
+                onClick={handleLogout}
+                className="p-2 rounded-lg bg-white/5 text-white/60 hover:text-white hover:bg-white/10 transition-colors"
+                title="Logout"
+              >
+                <FiLogOut size={18} />
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-    </aside>
+      </aside>
     </>
   );
 };
