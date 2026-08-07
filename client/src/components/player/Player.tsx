@@ -12,6 +12,7 @@ import {
   FiVolume1,
   FiVolumeX,
   FiHeart,
+  FiMusic,
   FiMaximize2,
   FiMinimize2,
   FiDownload,
@@ -83,12 +84,10 @@ const Player: React.FC = () => {
   const [localProgress, setLocalProgress] = useState(0);
   const [isLiked, setIsLiked] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [showMobileVolume, setShowMobileVolume] = useState(false);
   const progressRef = useRef<HTMLDivElement>(null);
   const fullscreenProgressRef = useRef<HTMLDivElement>(null);
   const volumeRef = useRef<HTMLDivElement>(null);
   const fullscreenVolumeRef = useRef<HTMLDivElement>(null);
-  const mobileVolumeRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -102,7 +101,6 @@ const Player: React.FC = () => {
   };
 
   const getActiveVolumeRef = () => {
-    if (showMobileVolume && mobileVolumeRef.current) return mobileVolumeRef.current;
     return isFullscreen ? fullscreenVolumeRef.current : volumeRef.current;
   };
 
@@ -212,7 +210,7 @@ const Player: React.FC = () => {
       window.removeEventListener('touchmove', handleTouchMove);
       window.removeEventListener('touchend', handleTouchEnd);
     };
-  }, [isDraggingProgress, isDraggingVolume, duration, isFullscreen, showMobileVolume, seek, setPlayerVolume]);
+  }, [isDraggingProgress, isDraggingVolume, duration, isFullscreen, seek, setPlayerVolume]);
 
   // Fullscreen handler
   const toggleFullscreen = async () => {

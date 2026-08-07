@@ -117,7 +117,7 @@ const Layout: React.FC = () => {
             }`
           }
         >
-          <FiMusic size={20} className={({ isActive }: any) => isActive ? 'text-red-500' : ''} />
+          <FiMusic size={20} className="text-red-500" />
           <span className="text-[10px] font-medium tracking-tight">YT Music</span>
         </NavLink>
 
