@@ -22,7 +22,7 @@ router.get('/saavn-search', async (req: Request, res: Response) => {
 
     console.log(`[AUDIO DOWNLOAD] Request - trackId: ${trackId}, youtubeId: ${youtubeId}, query: ${rawQuery}`);
 
-    // If youtubeId is not 11 chars, resolve via audioResolverService
+    // If youtubeId is not 11 chars, resolve via audioResolverService or Piped search
     if (!youtubeId || youtubeId.length !== 11) {
       const searchRes = await audioResolverService.resolveAudioSources({
         trackName: rawQuery,
@@ -30,6 +30,28 @@ router.get('/saavn-search', async (req: Request, res: Response) => {
       });
       if (searchRes && searchRes[0]?.youtubeId) {
         youtubeId = searchRes[0].youtubeId;
+      }
+    }
+
+    if (!youtubeId || youtubeId.length !== 11) {
+      const pipedSearchMirrors = [
+        'https://pipedapi.kavin.rocks',
+        'https://pipedapi.adminforge.de',
+        'https://api.piped.private.coffee',
+      ];
+      for (const instance of pipedSearchMirrors) {
+        try {
+          const pRes = await axios.get(`${instance}/search?q=${encodeURIComponent(rawQuery)}&filter=music_songs`, { timeout: 4000 });
+          const firstItem = pRes.data?.items?.[0];
+          if (firstItem?.url) {
+            const match = firstItem.url.match(/v=([a-zA-Z0-9_-]{11})/);
+            if (match?.[1]) {
+              youtubeId = match[1];
+              console.log(`[AUDIO DOWNLOAD] Resolved YouTube ID via Piped search: ${youtubeId}`);
+              break;
+            }
+          }
+        } catch {}
       }
     }
 
