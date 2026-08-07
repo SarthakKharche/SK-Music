@@ -181,23 +181,23 @@ class AudioCacheManager {
 
     let blob: Blob | null = null;
 
-    // Fetch audio stream via relative API proxy (HTTPS safe)
+    // Fetch audio stream via Axios api.get (handles CORS & base URL)
     try {
-      const audioResponse = await fetch(`/api/audio/saavn-search?query=${query}&trackId=${targetTrackId}`);
-      if (audioResponse.ok) {
+      const audioResponse = await api.get(`/audio/saavn-search?query=${query}&trackId=${targetTrackId}`, {
+        responseType: 'blob',
+        timeout: 30000,
+      });
+
+      if (audioResponse.data && audioResponse.data.size >= 30000) {
+        blob = audioResponse.data;
         this.notifySyncStatus({
           trackId: track.id,
           status: 'downloading',
-          progress: 75,
+          progress: 80,
         });
-
-        const fetchedBlob = await audioResponse.blob();
-        if (fetchedBlob.size >= 30000) {
-          blob = fetchedBlob;
-        }
       }
     } catch (err) {
-      console.warn('[OFFLINE] API download failed:', err);
+      console.warn('[OFFLINE] Axios API download failed:', err);
     }
 
     // Client-side direct mirror fallback if server endpoint was 404 or incomplete
