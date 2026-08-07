@@ -37,22 +37,9 @@ app.use(helmet({
 // Trust proxy headers (needed for secure cookies behind reverse proxies)
 app.set('trust proxy', 1);
 
-// CORS configuration
+// CORS configuration - Allow all origins for seamless audio streaming & downloads
 app.use(cors({
-  origin: (origin, callback) => {
-    if (!origin) {
-      return callback(null, true);
-    }
-    // Allow all origins in development
-    if (process.env.NODE_ENV === 'development') {
-      return callback(null, true);
-    }
-    // Allow any vercel.app domain or listed client origins
-    if (origin.endsWith('.vercel.app') || clientOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-    return callback(new Error('Not allowed by CORS'));
-  },
+  origin: true,
   credentials: true,
 }));
 

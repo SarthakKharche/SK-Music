@@ -200,15 +200,19 @@ class AudioCacheManager {
       console.warn('[OFFLINE] Axios API download failed:', err);
     }
 
-    // Client-side direct mirror fallback if server endpoint was 404 or incomplete
-    if (!blob && navigator.onLine) {
-      console.log('[OFFLINE] Triggering client-side direct mirror stream extraction for:', cleanTitle);
-      this.notifySyncStatus({
-        trackId: track.id,
-        status: 'downloading',
-        progress: 60,
-      });
-      blob = await this._fetchDirectAudioBlob(storedYoutubeId, query);
+    // Fallback attempt via native fetch
+    if (!blob) {
+      try {
+        const fetchRes = await fetch(`/api/audio/saavn-search?query=${query}&trackId=${targetTrackId}`);
+        if (fetchRes.ok) {
+          const fetchedBlob = await fetchRes.blob();
+          if (fetchedBlob.size >= 30000) {
+            blob = fetchedBlob;
+          }
+        }
+      } catch (fetchErr) {
+        console.warn('[OFFLINE] Native fetch download failed:', fetchErr);
+      }
     }
 
     if (!blob || blob.size < 30000) {
@@ -245,100 +249,7 @@ class AudioCacheManager {
     return cachedAudio;
   }
 
-  /**
-   * Helper to fetch audio binary directly from public CORS-enabled audio mirrors
-   */
-  private async _fetchDirectAudioBlob(youtubeId: string | null, queryStr: string): Promise<Blob | null> {
-    let targetYtId = youtubeId;
 
-    if (!targetYtId && navigator.onLine) {
-      const pipedSearchMirrors = [
-        'https://pipedapi.kavin.rocks',
-        'https://pipedapi.adminforge.de',
-        'https://api.piped.private.coffee'
-      ];
-      for (const instance of pipedSearchMirrors) {
-        try {
-          const res = await fetch(`${instance}/search?q=${queryStr}&filter=music_songs`);
-          if (res.ok) {
-            const data = await res.json();
-            const firstItem = data?.items?.[0];
-            if (firstItem?.url) {
-              const match = firstItem.url.match(/v=([a-zA-Z0-9_-]{11})/);
-              if (match?.[1]) {
-                targetYtId = match[1];
-                break;
-              }
-            }
-          }
-        } catch {}
-      }
-    }
-
-    if (!targetYtId) return null;
-
-    const pipedInstances = [
-      'https://pipedapi.kavin.rocks',
-      'https://pipedapi.adminforge.de',
-      'https://api.piped.private.coffee'
-    ];
-
-    for (const instance of pipedInstances) {
-      try {
-        const streamRes = await fetch(`${instance}/streams/${targetYtId}`);
-        if (streamRes.ok) {
-          const streamData = await streamRes.json();
-          const audioStreams = streamData?.audioStreams;
-          if (audioStreams && audioStreams.length > 0) {
-            audioStreams.sort((a: any, b: any) => (b.bitrate || 0) - (a.bitrate || 0));
-            const streamUrl = audioStreams[0].url;
-            if (streamUrl) {
-              console.log('[CLIENT DIRECT STREAM] Fetching binary audio directly from:', streamUrl.substring(0, 60));
-              const blobRes = await fetch(streamUrl);
-              if (blobRes.ok) {
-                const blob = await blobRes.blob();
-                if (blob.size > 30000) {
-                  return blob;
-                }
-              }
-            }
-          }
-        }
-      } catch {}
-    }
-
-    const invidiousInstances = [
-      'https://inv.tux.pizza',
-      'https://invidious.nerdvpn.de',
-      'https://vid.puffyan.us'
-    ];
-
-    for (const instance of invidiousInstances) {
-      try {
-        const invRes = await fetch(`${instance}/api/v1/videos/${targetYtId}`);
-        if (invRes.ok) {
-          const invData = await invRes.json();
-          const adaptive = invData?.adaptiveFormats || [];
-          const audioFormats = adaptive.filter((f: any) => f.url && f.type && f.type.startsWith('audio/'));
-          if (audioFormats.length > 0) {
-            audioFormats.sort((a: any, b: any) => (parseInt(b.bitrate || '0', 10)) - (parseInt(a.bitrate || '0', 10)));
-            const streamUrl = audioFormats[0].url;
-            if (streamUrl) {
-              const blobRes = await fetch(streamUrl);
-              if (blobRes.ok) {
-                const blob = await blobRes.blob();
-                if (blob.size > 30000) {
-                  return blob;
-                }
-              }
-            }
-          }
-        }
-      } catch {}
-    }
-
-    return null;
-  }
 
   /**
    * Download and cache audio
