@@ -151,6 +151,25 @@ const Player: React.FC = () => {
     }
   };
 
+  const handleVolumeTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    setIsDraggingVolume(true);
+    if (e.touches && e.touches[0]) {
+      const newVol = calculateNewVolume(e.touches[0].clientX);
+      if (newVol !== undefined) {
+        setPlayerVolume(newVol);
+      }
+    }
+  };
+
+  const handleVolumeTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (e.touches && e.touches[0]) {
+      const newVol = calculateNewVolume(e.touches[0].clientX);
+      if (newVol !== undefined) {
+        setPlayerVolume(newVol);
+      }
+    }
+  };
+
   // Mouse & Touch drag handlers for progress and volume sliders
   useEffect(() => {
     const handleMove = (clientX: number) => {
@@ -582,17 +601,20 @@ const Player: React.FC = () => {
                 </button>
                 <div 
                   ref={fullscreenVolumeRef}
-                  className="w-32 h-3 bg-white/20 rounded-full cursor-pointer group relative py-1"
+                  className="w-36 h-4 bg-white/20 rounded-full cursor-pointer group relative py-1 touch-none"
                   onClick={handleVolumeClick}
                   onMouseDown={handleVolumeMouseDown}
+                  onTouchStart={handleVolumeTouchStart}
+                  onTouchMove={handleVolumeTouchMove}
+                  onTouchEnd={() => setIsDraggingVolume(false)}
                 >
                   <div 
                     className="h-full bg-white group-hover:bg-spotify-green rounded-full relative transition-colors"
                     style={{ width: `${volumePercent}%` }}
                   >
                     <div 
-                      className={`absolute right-0 top-1/2 -translate-y-1/2 w-4 h-4 bg-white rounded-full shadow-md ${
-                        isDraggingVolume ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                      className={`absolute right-0 top-1/2 -translate-y-1/2 w-5 h-5 bg-white rounded-full shadow-lg ${
+                        isDraggingVolume ? 'opacity-100 opacity-90' : 'opacity-90'
                       } transition-opacity`}
                     />
                   </div>
@@ -762,9 +784,12 @@ const Player: React.FC = () => {
                 </button>
                 <div 
                   ref={volumeRef}
-                  className="w-24 h-2 bg-[#4d4d4d] rounded-full cursor-pointer group relative py-0.5"
+                  className="w-24 h-3 bg-[#4d4d4d] rounded-full cursor-pointer group relative py-0.5 touch-none"
                   onClick={handleVolumeClick}
                   onMouseDown={handleVolumeMouseDown}
+                  onTouchStart={handleVolumeTouchStart}
+                  onTouchMove={handleVolumeTouchMove}
+                  onTouchEnd={() => setIsDraggingVolume(false)}
                 >
                   <div 
                     className="h-full bg-white group-hover:bg-spotify-green rounded-full relative transition-colors"
