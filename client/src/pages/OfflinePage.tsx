@@ -4,6 +4,7 @@ import { indexedDB } from '../services/indexedDB';
 import { FiClock, FiPlay, FiSearch, FiMusic, FiPause, FiDownload, FiTrash2, FiHardDrive } from 'react-icons/fi';
 import { formatDuration } from '../utils/helpers';
 import type { Track } from '../types';
+import api from '../utils/api';
 
 const OfflinePage: React.FC = () => {
   const { playTrack, currentTrack, isPlaying } = usePlayer();
@@ -12,29 +13,48 @@ const OfflinePage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [cacheSize, setCacheSize] = useState<number>(0);
+  const [syncingAll, setSyncingAll] = useState(false);
 
   const loadOfflineTracks = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
       
-      // Get only tracks that have cached audio blobs
-      const tracks = await indexedDB.getOfflineTracks();
+      // 1. Get locally cached tracks
+      const localTracks = await indexedDB.getOfflineTracks();
       const size = await indexedDB.getCacheSize();
-      
       setCacheSize(size);
       
+      // 2. Fetch user's account-synced offline preferences from backend
+      let mergedTracks = [...localTracks];
+      if (navigator.onLine) {
+        try {
+          const prefRes = await api.get('/user/offline-preferences');
+          const remoteTracks: Track[] = prefRes.data?.tracks || [];
+
+          // Add remote tracks that aren't cached locally yet
+          const localIds = new Set(localTracks.map(t => t.id));
+          for (const rTrack of remoteTracks) {
+            if (rTrack && rTrack.id && !localIds.has(rTrack.id)) {
+              mergedTracks.push(rTrack);
+            }
+          }
+        } catch (prefErr) {
+          console.warn('[OFFLINE PAGE] Remote preferences sync skipped:', prefErr);
+        }
+      }
+
       // Filter by search query if present
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase();
-        const filtered = tracks.filter(track => 
-          track.name.toLowerCase().includes(query) ||
-          track.artists?.some(a => a.name.toLowerCase().includes(query)) ||
+        const filtered = mergedTracks.filter(track => 
+          track.name?.toLowerCase().includes(query) ||
+          track.artists?.some(a => a.name?.toLowerCase().includes(query)) ||
           track.album?.name?.toLowerCase().includes(query)
         );
         setOfflineTracks(filtered);
       } else {
-        setOfflineTracks(tracks);
+        setOfflineTracks(mergedTracks);
       }
     } catch (err) {
       console.error('Failed to load offline tracks:', err);
@@ -44,6 +64,26 @@ const OfflinePage: React.FC = () => {
       setLoading(false);
     }
   }, [searchQuery]);
+
+  const handleSyncAll = async () => {
+    setSyncingAll(true);
+    try {
+      const { audioCacheManager } = await import('../services/audioCacheManager');
+      for (const track of offlineTracks) {
+        const isCached = await indexedDB.isAudioCached(track.id);
+        if (!isCached) {
+          try {
+            await audioCacheManager.cacheAudio(track);
+          } catch (e) {
+            console.warn('Sync item failed:', track.name, e);
+          }
+        }
+      }
+      await loadOfflineTracks();
+    } finally {
+      setSyncingAll(false);
+    }
+  };
 
   useEffect(() => {
     loadOfflineTracks();
@@ -104,23 +144,39 @@ const OfflinePage: React.FC = () => {
     <div className="p-8">
       {/* Header */}
       <div className="mb-8">
-        <div className="flex items-center gap-6 mb-6">
-          <div className="bg-gradient-to-br from-green-600 to-emerald-500 p-8 rounded-lg shadow-2xl">
-            <FiDownload className="text-white text-5xl" />
+        <div className="flex items-center justify-between gap-6 mb-6">
+          <div className="flex items-center gap-6">
+            <div className="bg-gradient-to-br from-green-600 to-emerald-500 p-8 rounded-lg shadow-2xl">
+              <FiDownload className="text-white text-5xl" />
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-widest text-spotify-lightgray mb-1">Downloads</p>
+              <h1 className="text-5xl font-bold text-white mb-2">Offline Music</h1>
+              <p className="text-spotify-lightgray flex items-center gap-4">
+                <span>{offlineTracks.length} {offlineTracks.length === 1 ? 'song' : 'songs'}</span>
+                {cacheSize > 0 && (
+                  <span className="flex items-center gap-1">
+                    <FiHardDrive size={14} />
+                    {formatBytes(cacheSize)}
+                  </span>
+                )}
+              </p>
+            </div>
           </div>
-          <div>
-            <p className="text-xs uppercase tracking-widest text-spotify-lightgray mb-1">Downloads</p>
-            <h1 className="text-5xl font-bold text-white mb-2">Offline Music</h1>
-            <p className="text-spotify-lightgray flex items-center gap-4">
-              <span>{offlineTracks.length} {offlineTracks.length === 1 ? 'song' : 'songs'}</span>
-              {cacheSize > 0 && (
-                <span className="flex items-center gap-1">
-                  <FiHardDrive size={14} />
-                  {formatBytes(cacheSize)}
-                </span>
+          {offlineTracks.length > 0 && (
+            <button
+              onClick={handleSyncAll}
+              disabled={syncingAll}
+              className="px-5 py-2.5 bg-spotify-green hover:bg-green-400 text-black font-semibold rounded-full shadow-lg transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
+            >
+              {syncingAll ? (
+                <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-black" />
+              ) : (
+                <FiDownload size={16} />
               )}
-            </p>
-          </div>
+              {syncingAll ? 'Syncing...' : 'Sync Account Downloads'}
+            </button>
+          )}
         </div>
 
         {/* Search Bar */}
