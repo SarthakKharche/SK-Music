@@ -185,11 +185,57 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   }, [isYouTube]);
 
   /**
-   * Initialize audio element
+   * Update OS Media Session (Lock Screen & Background Player Notification)
+   */
+  const updateMediaSession = (track: Track | null, isPlaying: boolean, durationSec = 0, currentSec = 0) => {
+    if (typeof navigator === 'undefined' || !('mediaSession' in navigator) || !track) return;
+
+    try {
+      const coverUrl = (track.album as any)?.imageUrl || (track.album as any)?.images?.[0]?.url || '';
+      
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: track.name,
+        artist: track.artists ? track.artists.map((a) => a.name).join(', ') : 'SK Music',
+        album: track.album?.name || 'SK Music',
+        artwork: coverUrl ? [{ src: coverUrl, sizes: '300x300', type: 'image/jpeg' }] : [],
+      });
+
+      navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
+
+      if (durationSec > 0 && 'setPositionState' in navigator.mediaSession) {
+        try {
+          navigator.mediaSession.setPositionState({
+            duration: Math.max(durationSec, 1),
+            playbackRate: 1,
+            position: Math.min(Math.max(currentSec, 0), durationSec),
+          });
+        } catch {}
+      }
+    } catch (e) {
+      console.warn('MediaSession error:', e);
+    }
+  };
+
+  /**
+   * Sync MediaSession state whenever track or playing status changes
+   */
+  useEffect(() => {
+    if (state.currentTrack) {
+      updateMediaSession(state.currentTrack, state.isPlaying, state.duration, state.currentTime);
+    }
+  }, [state.currentTrack, state.isPlaying]);
+
+  /**
+   * Initialize audio element with background & lockscreen playback permissions
    */
   useEffect(() => {
     const audio = new Audio();
     audio.volume = state.volume;
+    
+    // Enable background audio playback on mobile browsers when minimized/locked
+    (audio as any).playsInline = true;
+    audio.setAttribute('playsinline', 'true');
+    audio.setAttribute('webkit-playsinline', 'true');
     
     audio.addEventListener('timeupdate', () => {
       setState((prev) => ({ ...prev, currentTime: audio.currentTime }));
@@ -205,10 +251,22 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
     audio.addEventListener('play', () => {
       setState((prev) => ({ ...prev, isPlaying: true }));
+      if (state.currentTrack) {
+        updateMediaSession(state.currentTrack, true, audio.duration, audio.currentTime);
+      }
     });
 
     audio.addEventListener('pause', () => {
+      // Don't mark paused if pause happened due to screen lock or tab visibility change
+      if (document.hidden) {
+        console.log('[Player] Lockscreen/Visibility pause prevented, attempting auto-resume...');
+        audio.play().catch(() => {});
+        return;
+      }
       setState((prev) => ({ ...prev, isPlaying: false }));
+      if (state.currentTrack) {
+        updateMediaSession(state.currentTrack, false, audio.duration, audio.currentTime);
+      }
     });
 
     audio.addEventListener('error', (e) => {
@@ -219,6 +277,21 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     });
 
     audioRef.current = audio;
+
+    // Register Media Session action handlers for OS lockscreen controls
+    if (typeof navigator !== 'undefined' && 'mediaSession' in navigator) {
+      try {
+        navigator.mediaSession.setActionHandler('play', () => resume());
+        navigator.mediaSession.setActionHandler('pause', () => pause());
+        navigator.mediaSession.setActionHandler('previoustrack', () => previous());
+        navigator.mediaSession.setActionHandler('nexttrack', () => next());
+        navigator.mediaSession.setActionHandler('seekto', (details) => {
+          if (details.seekTime !== undefined) seek(details.seekTime);
+        });
+      } catch (e) {
+        console.warn('MediaSession action handler error:', e);
+      }
+    }
 
     return () => {
       audio.pause();

@@ -2,6 +2,8 @@
 @tailwind components;
 @tailwind utilities;
 
+@import './styles/mobile.css';
+
 @layer base {
   body {
     @apply bg-spotify-black text-spotify-white font-sans antialiased;

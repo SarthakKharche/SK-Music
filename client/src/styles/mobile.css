@@ -1,0 +1,92 @@
+/* Mobile CSS Stylesheet for SK Music */
+
+@media (max-width: 768px) {
+  /* Safe area inset adjustments for modern mobile devices (iOS / Android gesture bars) */
+  :root {
+    --safe-area-bottom: env(safe-area-inset-bottom, 16px);
+  }
+
+  body {
+    padding-bottom: calc(90px + var(--safe-area-bottom));
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  /* Touch-friendly buttons and card targets */
+  button, 
+  a, 
+  .card-hover,
+  .pill {
+    min-height: 44px;
+    touch-action: manipulation;
+  }
+
+  /* Mobile Header Adjustments */
+  header {
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+  }
+
+  /* Compact Search Bar for Mobile */
+  .input-sleek {
+    font-size: 16px !important; /* Prevents auto-zoom on iOS Safari */
+    padding-top: 0.65rem !important;
+    padding-bottom: 0.65rem !important;
+  }
+
+  /* Mobile Track Item Sizing & Spacing */
+  .track-item-mobile {
+    padding: 10px 12px !important;
+    border-radius: 12px !important;
+  }
+
+  /* Compact Glass Panels on Mobile */
+  .glass-panel {
+    border-radius: 16px !important;
+    padding: 1rem !important;
+  }
+
+  /* Floating Mini Player / Bottom Navigation Bar Spacing */
+  .mobile-bottom-player {
+    bottom: calc(64px + env(safe-area-inset-bottom, 0px)) !important;
+    left: 8px !important;
+    right: 8px !important;
+    width: auto !important;
+    border-radius: 16px !important;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6) !important;
+  }
+
+  /* Hide non-essential desktop elements on small screens */
+  .desktop-only {
+    display: none !important;
+  }
+
+  /* Mobile Full-Screen Player Modal Animation */
+  .mobile-player-fullscreen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 100;
+    background: radial-gradient(circle at 50% 20%, rgba(29, 185, 84, 0.25), #060912 85%);
+    backdrop-filter: blur(25px);
+    -webkit-backdrop-filter: blur(25px);
+    display: flex;
+    flex-direction: column;
+    padding: 24px 20px calc(24px + var(--safe-area-bottom));
+  }
+
+  /* Horizontal scrolling for pills & quick filters on mobile */
+  .mobile-scroll-x {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  
+  .mobile-scroll-x::-webkit-scrollbar {
+    display: none;
+  }
+}
