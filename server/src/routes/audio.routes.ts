@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import axios from 'axios';
 import { isAuthenticated } from '../middleware/auth.middleware';
 import { audioResolverService } from '../services/audio-resolver.service';
 import { existsSync, mkdirSync } from 'fs';
@@ -96,7 +97,6 @@ router.get('/saavn-search', async (req: Request, res: Response) => {
     // Stream binary audio directly from server to client to prevent CORS / hotlink blocks
     console.log(`[YOUTUBE AUDIO] Streaming binary audio to client...`);
 
-    const axios = (await import('axios')).default;
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Headers', '*');
 
