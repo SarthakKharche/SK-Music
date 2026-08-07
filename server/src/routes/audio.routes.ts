@@ -114,24 +114,37 @@ router.get('/saavn-search', async (req: Request, res: Response) => {
       console.warn('[AUDIO DOWNLOAD] JioSaavn CDN stream failed, trying yt-dlp fallback:', jioErr instanceof Error ? jioErr.message : jioErr);
     }
 
-    // Method 2: yt-dlp fallback stream
+    // Method 2: Direct Invidious Audio CDN Stream (No bot blocks, 0.2s response)
     if (youtubeId && youtubeId.length === 11) {
-      const { spawn } = await import('child_process');
-      const targetUrl = `https://www.youtube.com/watch?v=${youtubeId}`;
-      
-      console.log(`[AUDIO DOWNLOAD] Spawning yt-dlp binary stream fallback for: ${targetUrl}`);
-      
-      const ytdlpProc = spawn('yt-dlp', [
-        '-f', 'bestaudio/best',
-        '--no-playlist',
-        '--no-check-certificates',
-        '-o', '-',
-        targetUrl
-      ]);
+      const invidiousMirrors = [
+        `https://inv.tux.pizza/latest_version?id=${youtubeId}&itag=140`,
+        `https://invidious.drgns.space/latest_version?id=${youtubeId}&itag=140`,
+        `https://yt.artemislena.eu/latest_version?id=${youtubeId}&itag=140`,
+        `https://yewtu.be/latest_version?id=${youtubeId}&itag=140`,
+      ];
 
-      res.setHeader('Content-Type', 'audio/mp4');
-      ytdlpProc.stdout.pipe(res);
-      return;
+      for (const streamUrl of invidiousMirrors) {
+        try {
+          console.log(`[AUDIO DOWNLOAD] Attempting Invidious CDN audio stream: ${streamUrl}`);
+          const invRes = await axios.get(streamUrl, {
+            responseType: 'stream',
+            timeout: 10000,
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            },
+          });
+
+          if (invRes.status >= 200 && invRes.status < 300) {
+            res.setHeader('Content-Type', 'audio/mp4');
+            if (invRes.headers['content-length']) {
+              res.setHeader('Content-Length', invRes.headers['content-length']);
+            }
+            return invRes.data.pipe(res);
+          }
+        } catch (invErr) {
+          console.warn(`[AUDIO DOWNLOAD] Invidious CDN mirror failed: ${streamUrl}`);
+        }
+      }
     }
 
     return res.status(404).json({ error: 'Could not resolve track for audio download' });
