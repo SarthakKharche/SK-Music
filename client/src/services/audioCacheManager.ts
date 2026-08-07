@@ -161,7 +161,6 @@ class AudioCacheManager {
     }
 
     const cleanTitle = (resolvedTrack.name || 'Song').replace(/[\(\)\[\]"'\-_]/g, ' ').replace(/\s+/g, ' ').trim();
-    const primaryArtist = resolvedTrack.artists?.[0]?.name?.split(',')[0]?.split('&')[0]?.trim() || '';
 
     this.notifySyncStatus({
       trackId: resolvedTrack.id,
@@ -203,13 +202,13 @@ class AudioCacheManager {
     });
 
     let blob: Blob | null = null;
-    const rawSearchQuery = `${cleanTitle} ${primaryArtist}`.trim();
+    const searchTitleOnly = cleanTitle;
 
-    // Fetch audio stream via Axios api.get (handles CORS & base URL)
+    // 1. Primary: Download audio stream via Express backend endpoint
     try {
       const audioResponse = await api.get('/audio/saavn-search', {
         params: {
-          query: rawSearchQuery,
+          query: searchTitleOnly,
           trackId: targetTrackId,
         },
         responseType: 'blob',
@@ -218,31 +217,53 @@ class AudioCacheManager {
 
       if (audioResponse.data && audioResponse.data.size >= 30000) {
         blob = audioResponse.data;
-        this.notifySyncStatus({
-          trackId: track.id,
-          status: 'downloading',
-          progress: 80,
-        });
       }
     } catch (err) {
-      console.warn('[OFFLINE] Axios API download failed:', err);
+      console.warn('[OFFLINE] Express API download failed, trying direct browser JioSaavn CDN fallback:', err);
     }
 
-    // Fallback attempt via native fetch using correct backend base URL
-    if (!blob) {
+    // 2. Direct Browser JioSaavn CDN Fallback (Bypasses backend completely if server is unreachable)
+    if (!blob && navigator.onLine) {
       try {
-        const baseUrl = api.defaults.baseURL || '/api';
-        const fallbackUrl = `${baseUrl}/audio/saavn-search?query=${encodeURIComponent(rawSearchQuery)}&trackId=${encodeURIComponent(targetTrackId)}`;
-        const fetchRes = await fetch(fallbackUrl);
-        if (fetchRes.ok) {
-          const fetchedBlob = await fetchRes.blob();
-          if (fetchedBlob.size >= 30000) {
-            blob = fetchedBlob;
+        console.log('[OFFLINE] Executing direct JioSaavn CDN browser fetch for:', searchTitleOnly);
+        const jioSearchRes = await fetch(`https://jiosaavn-api-private.vercel.app/search/songs?query=${encodeURIComponent(searchTitleOnly)}`);
+        if (jioSearchRes.ok) {
+          const jioSearchData = await jioSearchRes.json();
+          const songId = jioSearchData?.data?.results?.[0]?.id || jioSearchData?.results?.[0]?.id;
+
+          if (songId) {
+            const jioDetailRes = await fetch(`https://jiosaavn-api-private.vercel.app/song?id=${songId}`);
+            if (jioDetailRes.ok) {
+              const jioDetailData = await jioDetailRes.json();
+              const rawStr = JSON.stringify(jioDetailData);
+              const matches = rawStr.match(/https:\/\/aac\.saavncdn\.com\/[^\s"']+/g);
+
+              if (matches && matches.length > 0) {
+                const optMatch = matches.find(url => url.includes('_160.mp4') || url.includes('_96.mp4')) || matches[0];
+                console.log('[OFFLINE] Direct JioSaavn CDN audio URL resolved:', optMatch.substring(0, 60));
+                
+                const cdnAudioRes = await fetch(optMatch);
+                if (cdnAudioRes.ok) {
+                  const cdnBlob = await cdnAudioRes.blob();
+                  if (cdnBlob.size >= 30000) {
+                    blob = cdnBlob;
+                  }
+                }
+              }
+            }
           }
         }
-      } catch (fetchErr) {
-        console.warn('[OFFLINE] Native fetch download failed:', fetchErr);
+      } catch (jioDirectErr) {
+        console.warn('[OFFLINE] Direct JioSaavn CDN fetch failed:', jioDirectErr);
       }
+    }
+
+    if (blob && blob.size >= 30000) {
+      this.notifySyncStatus({
+        trackId: track.id,
+        status: 'downloading',
+        progress: 80,
+      });
     }
 
     if (!blob || blob.size < 30000) {
