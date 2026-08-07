@@ -462,7 +462,7 @@ const Player: React.FC = () => {
       className={`${
         isFullscreen 
           ? 'fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center p-8 overflow-y-auto overflow-x-hidden' 
-          : 'h-[90px] bg-[#181818] border-t border-[#282828] px-4 grid grid-cols-3 items-center'
+          : 'h-[90px] bg-[#181818] border-t border-[#282828] w-full z-40'
       }`}
     >
       {isFullscreen ? (
