@@ -225,20 +225,45 @@ class AudioCacheManager {
       throw new Error('Downloaded audio binary is incomplete or unavailable');
     }
 
+    // Calculate exact real audio duration from binary blob metadata
+    const realDurationMs = await new Promise<number>((resolve) => {
+      try {
+        const tempAudio = document.createElement('audio');
+        const tempUrl = URL.createObjectURL(blob);
+        tempAudio.src = tempUrl;
+        tempAudio.onloadedmetadata = () => {
+          const duration = Math.round(tempAudio.duration * 1000);
+          URL.revokeObjectURL(tempUrl);
+          resolve(duration && !isNaN(duration) && duration > 0 ? duration : (track.durationMs || 180000));
+        };
+        tempAudio.onerror = () => {
+          URL.revokeObjectURL(tempUrl);
+          resolve(track.durationMs || 180000);
+        };
+      } catch {
+        resolve(track.durationMs || 180000);
+      }
+    });
+
+    const updatedTrack = {
+      ...track,
+      durationMs: realDurationMs,
+    };
+
     const cachedAudio: CachedAudio = {
       trackId: track.id,
       blob,
       format: 'mp3',
       quality: 'high',
-      durationMs: track.durationMs || 180000,
+      durationMs: realDurationMs,
       cachedAt: new Date().toISOString(),
       lastAccessedAt: new Date().toISOString(),
       sizeBytes: blob.size,
-      track,
+      track: updatedTrack,
     };
 
     await indexedDB.cacheAudio(cachedAudio);
-    console.log(`✅ Downloaded for offline: ${track.name} (${(blob.size / 1024 / 1024).toFixed(2)} MB)`);
+    console.log(`✅ Downloaded for offline: ${track.name} (${(blob.size / 1024 / 1024).toFixed(2)} MB, duration: ${Math.floor(realDurationMs / 1000)}s)`);
 
     // Sync download preference to user account across devices
     try {

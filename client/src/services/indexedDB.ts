@@ -458,10 +458,13 @@ class IndexedDBManager {
     // Get track IDs that have cached audio
     const cachedTrackIds = new Set(cachedAudio.map(a => a.trackId));
     
-    // Try to get track metadata from cached audio first
+    // Try to get track metadata from cached audio first and attach real cached durationMs
     const tracksFromCache: Track[] = cachedAudio
       .filter(a => a.track)
-      .map(a => a.track as Track);
+      .map(a => ({
+        ...a.track!,
+        durationMs: (a.track!.durationMs && a.track!.durationMs > 0) ? a.track!.durationMs : (a.durationMs || 180000),
+      }));
 
     // For tracks without embedded metadata, try to find them in listening history
     const missingTrackIds = cachedAudio
