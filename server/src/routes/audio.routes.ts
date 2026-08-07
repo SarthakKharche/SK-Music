@@ -27,25 +27,59 @@ router.get('/saavn-search', async (req: Request, res: Response) => {
 
     let directUrl: string | null = null;
 
-    // 1. Extract audio stream URL via yt-dlp by YouTube ID
+    // 1. Extract audio stream URL via yt-dlp with android player client on EC2
     if (youtubeId && youtubeId.length === 11) {
       try {
-        const { stdout } = await execPromise(`yt-dlp -f bestaudio -g "https://www.youtube.com/watch?v=${youtubeId}"`, { timeout: 15000 });
+        const { stdout } = await execPromise(
+          `yt-dlp -f bestaudio --no-check-certificates --extractor-args "youtube:player_client=android,web" -g "https://www.youtube.com/watch?v=${youtubeId}"`,
+          { timeout: 15000 }
+        );
         if (stdout && stdout.trim().startsWith('http')) {
           directUrl = stdout.trim().split('\n')[0];
-          console.log('[YOUTUBE AUDIO] yt-dlp resolved by YouTube ID!');
+          console.log('[YOUTUBE AUDIO] yt-dlp android client resolved by YouTube ID!');
         }
       } catch (e) {
         console.warn('[YOUTUBE AUDIO] yt-dlp by ID error:', e);
       }
     }
 
-    // 2. Fallback: Extract audio stream URL via yt-dlp search query
+    // 2. Fallback: Query Piped API instances directly on EC2
+    if (!directUrl && youtubeId && youtubeId.length === 11) {
+      const pipedInstances = [
+        'https://pipedapi.adminforge.de',
+        'https://pipedapi.kavin.rocks',
+        'https://pipedapi.tokhmi.xyz',
+        'https://api.piped.private.coffee',
+      ];
+
+      for (const instance of pipedInstances) {
+        try {
+          console.log(`[YOUTUBE AUDIO] Trying Piped API fallback: ${instance}`);
+          const pipedRes = await axios.get(`${instance}/streams/${youtubeId}`, { timeout: 6000 });
+          const audioStreams = pipedRes.data?.audioStreams;
+          if (audioStreams && audioStreams.length > 0) {
+            audioStreams.sort((a: any, b: any) => (b.bitrate || 0) - (a.bitrate || 0));
+            if (audioStreams[0]?.url) {
+              directUrl = audioStreams[0].url;
+              console.log(`[YOUTUBE AUDIO] Resolved Piped stream URL from: ${instance}`);
+              break;
+            }
+          }
+        } catch (pipedErr) {
+          // Try next Piped mirror
+        }
+      }
+    }
+
+    // 3. Fallback: Search YouTube via yt-dlp with clean query
     if (!directUrl && rawQuery) {
       const cleanSearch = rawQuery.replace(/[\(\)\[\]"'\-_]/g, ' ').replace(/\s+/g, ' ').trim();
       try {
         console.log(`[YOUTUBE AUDIO] Searching YouTube via yt-dlp: ${cleanSearch}`);
-        const { stdout } = await execPromise(`yt-dlp -f bestaudio -g "ytsearch1:${cleanSearch}"`, { timeout: 15000 });
+        const { stdout } = await execPromise(
+          `yt-dlp -f bestaudio --no-check-certificates --extractor-args "youtube:player_client=android,web" -g "ytsearch1:${cleanSearch}"`,
+          { timeout: 15000 }
+        );
         if (stdout && stdout.trim().startsWith('http')) {
           directUrl = stdout.trim().split('\n')[0];
           console.log('[YOUTUBE AUDIO] yt-dlp resolved by search query!');
