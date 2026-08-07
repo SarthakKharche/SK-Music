@@ -3,12 +3,12 @@ import { useAuth } from '../contexts/AuthContext';
 import { useOffline } from '../contexts/OfflineContext';
 import { indexedDB } from '../services/indexedDB';
 import { SiSpotify } from 'react-icons/si';
-import { FiTrash2, FiDatabase } from 'react-icons/fi';
+import { FiTrash2, FiDatabase, FiLogOut } from 'react-icons/fi';
 import { formatBytes } from '../utils/helpers';
 import api from '../utils/api';
 
 const SettingsPage: React.FC = () => {
-  const { user, connectSpotify } = useAuth();
+  const { user, connectSpotify, logout } = useAuth();
   const { clearCache } = useOffline();
   const [stats, setStats] = useState({
     trackCount: 0,
@@ -31,7 +31,6 @@ const SettingsPage: React.FC = () => {
       const dbStats = await indexedDB.getStats();
       setStats(dbStats);
 
-      // Load user stats from server
       try {
         const response = await api.get('/user/stats');
         setUserStats(response.data);
@@ -85,10 +84,29 @@ const SettingsPage: React.FC = () => {
     }
   };
 
+  const handleLogout = async () => {
+    if (confirm('Are you sure you want to log out of SK Music?')) {
+      try {
+        await logout();
+      } catch (error) {
+        console.error('Logout failed:', error);
+      }
+    }
+  };
+
   return (
     <div className="p-8 max-w-4xl mx-auto">
       {/* Header */}
-      <h1 className="text-4xl font-bold text-white mb-8">Settings</h1>
+      <div className="flex items-center justify-between mb-8">
+        <h1 className="text-4xl font-bold text-white">Settings</h1>
+        <button
+          onClick={handleLogout}
+          className="px-4 py-2 bg-red-600/20 text-red-400 hover:bg-red-600 hover:text-white rounded-full text-sm font-medium transition-all flex items-center gap-2 cursor-pointer"
+        >
+          <FiLogOut size={16} />
+          Log Out
+        </button>
+      </div>
 
       {/* Account Section */}
       <section className="bg-spotify-gray rounded-lg p-6 mb-6">
@@ -98,8 +116,15 @@ const SettingsPage: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-white font-medium">Google Account</p>
-              <p className="text-sm text-spotify-lightgray">{user?.email}</p>
+              <p className="text-sm text-spotify-lightgray">{user?.email || 'Logged in user'}</p>
             </div>
+            <button
+              onClick={handleLogout}
+              className="px-4 py-2 bg-white/10 hover:bg-red-600 text-white rounded-full text-sm font-medium transition-all flex items-center gap-2 cursor-pointer"
+            >
+              <FiLogOut size={16} />
+              Log Out
+            </button>
           </div>
 
           <div className="border-t border-spotify-black pt-4">
