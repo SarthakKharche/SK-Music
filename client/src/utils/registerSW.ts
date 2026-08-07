@@ -1,28 +1,36 @@
+import { Workbox } from 'workbox-window';
+
 /**
  * Register Service Worker for PWA functionality
  */
 export const registerSW = (): void => {
-  if (!import.meta.env.PROD) {
-    return;
-  }
-
   if ('serviceWorker' in navigator) {
-    // Unregister stale legacy service workers
-    navigator.serviceWorker.getRegistrations().then((registrations) => {
-      for (const registration of registrations) {
-        registration.unregister();
+    const wb = new Workbox('/sw.js');
+
+    wb.addEventListener('installed', (event) => {
+      if (event.isUpdate) {
+        console.log('[PWA] New update available, reloading...');
+        window.location.reload();
       }
     });
 
-    if ('caches' in window) {
-      caches.keys().then((names) => {
-        for (const name of names) {
-          if (name.includes('workbox') || name.includes('sw')) {
-            caches.delete(name);
-          }
+    wb.addEventListener('waiting', () => {
+      wb.messageSkipWaiting();
+    });
+
+    wb.addEventListener('controlling', () => {
+      window.location.reload();
+    });
+
+    wb.register()
+      .then((reg) => {
+        if (reg) {
+          reg.update();
         }
+      })
+      .catch((err) => {
+        console.warn('[PWA] Registration failed:', err);
       });
-    }
   }
 };
 
