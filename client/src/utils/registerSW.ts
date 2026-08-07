@@ -13,25 +13,23 @@ export const registerSW = (): void => {
 
     wb.addEventListener('installed', (event) => {
       if (event.isUpdate) {
-        console.log('New content available, please refresh.');
-        // Show update notification to user
-        if (confirm('New version available! Reload to update?')) {
-          window.location.reload();
-        }
+        console.log('New version installed, reloading...');
+        window.location.reload();
       } else {
         console.log('Service Worker installed for the first time.');
       }
     });
 
-    wb.addEventListener('activated', (event) => {
-      if (!event.isUpdate) {
-        console.log('Service Worker activated.');
-      }
+    wb.addEventListener('waiting', () => {
+      wb.messageSkipWaiting();
     });
 
     wb.register()
-      .then(() => {
+      .then((reg) => {
         console.log('Service Worker registered successfully.');
+        if (reg) {
+          reg.update();
+        }
       })
       .catch((error) => {
         console.error('Service Worker registration failed:', error);
