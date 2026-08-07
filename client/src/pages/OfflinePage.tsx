@@ -117,6 +117,18 @@ const OfflinePage: React.FC = () => {
     if (confirm('Remove this song from offline storage?')) {
       try {
         await indexedDB.deleteCachedAudio(trackId);
+        
+        if (navigator.onLine) {
+          try {
+            await api.post('/user/offline-preferences', {
+              trackIds: [trackId],
+              isOfflinePreferred: false,
+            });
+          } catch (syncErr) {
+            console.warn('[OFFLINE DELETE] Failed to update account preference:', syncErr);
+          }
+        }
+        
         await loadOfflineTracks(); // Refresh the list
       } catch (err) {
         console.error('Failed to delete cached audio:', err);

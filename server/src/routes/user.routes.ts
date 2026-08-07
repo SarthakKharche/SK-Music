@@ -47,22 +47,27 @@ router.post('/offline-preferences', isAuthenticated, async (req, res) => {
 
     for (const trackId of trackIds) {
       const trackRef = db.collection('tracks').doc(`${user.uid}_${trackId}`);
-      const payload: any = {
-        id: trackId,
-        userId: user.uid,
-        isOfflinePreferred: isOfflinePreferred ?? true,
-        updatedAt: new Date().toISOString(),
-      };
+      
+      if (isOfflinePreferred === false) {
+        batch.delete(trackRef);
+      } else {
+        const payload: any = {
+          id: trackId,
+          userId: user.uid,
+          isOfflinePreferred: true,
+          updatedAt: new Date().toISOString(),
+        };
 
-      if (track) {
-        payload.name = track.name;
-        payload.artists = track.artists;
-        payload.album = track.album;
-        payload.durationMs = track.durationMs;
-        payload.spotifyUrl = track.spotifyUrl;
+        if (track) {
+          payload.name = track.name;
+          payload.artists = track.artists;
+          payload.album = track.album;
+          payload.durationMs = track.durationMs;
+          payload.spotifyUrl = track.spotifyUrl;
+        }
+
+        batch.set(trackRef, payload, { merge: true });
       }
-
-      batch.set(trackRef, payload, { merge: true });
     }
 
     await batch.commit();
