@@ -181,6 +181,7 @@ class AudioCacheManager {
 
     let blob: Blob | null = null;
 
+    // 1. Try relative API proxy first
     try {
       const audioResponse = await fetch(`/api/audio/saavn-search?query=${query}&trackId=${targetTrackId}`);
       if (audioResponse.ok) {
@@ -196,7 +197,28 @@ class AudioCacheManager {
         }
       }
     } catch (err) {
-      console.warn('[OFFLINE] Server download route failed, attempting direct client mirror fallback:', err);
+      console.warn('[OFFLINE] Relative API download failed, trying direct EC2 endpoint:', err);
+    }
+
+    // 2. Direct EC2 server fallback (bypasses Vercel serverless proxy timeout)
+    if (!blob) {
+      try {
+        console.log('[OFFLINE] Fetching audio stream directly from EC2 backend...');
+        const ec2Response = await fetch(`http://3.111.29.235:5000/api/audio/saavn-search?query=${query}&trackId=${targetTrackId}`);
+        if (ec2Response.ok) {
+          this.notifySyncStatus({
+            trackId: track.id,
+            status: 'downloading',
+            progress: 80,
+          });
+          const fetchedBlob = await ec2Response.blob();
+          if (fetchedBlob.size >= 30000) {
+            blob = fetchedBlob;
+          }
+        }
+      } catch (ec2Err) {
+        console.warn('[OFFLINE] Direct EC2 download failed:', ec2Err);
+      }
     }
 
     // Client-side direct mirror fallback if server endpoint was 404 or incomplete
