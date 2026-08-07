@@ -7,7 +7,8 @@ import {
   FiMusic,
   FiLogOut,
   FiPlus,
-  FiHeart
+  FiHeart,
+  FiX
 } from 'react-icons/fi';
 
 import { useAuth } from '../../contexts/AuthContext';
@@ -16,7 +17,12 @@ import { indexedDB } from '../../services/indexedDB';
 import api from '../../utils/api';
 import type { Playlist } from '../../types';
 
-const Sidebar: React.FC = () => {
+interface SidebarProps {
+  isOpen?: boolean;
+  onClose?: () => void;
+}
+
+const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => {
   const { user, logout } = useAuth();
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
 
@@ -106,21 +112,44 @@ const Sidebar: React.FC = () => {
   };
 
   return (
-    <aside className="relative w-64 bg-[#0b1020]/80 backdrop-blur-2xl border-r border-white/5 shadow-[0_10px_40px_rgba(0,0,0,0.45)] overflow-hidden flex flex-col">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(29,185,84,0.14),transparent_36%),radial-gradient(circle_at_90%_10%,rgba(94,234,212,0.12),transparent_32%)] blur-3xl" aria-hidden />
-      <div className="relative z-10 flex flex-col h-full">
-        {/* Logo */}
-        <div className="p-6 pb-4 border-b border-white/5 bg-gradient-to-r from-white/5 via-white/0 to-white/0">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-spotify-green/15 border border-spotify-green/30 flex items-center justify-center shadow-[0_10px_30px_rgba(29,185,84,0.25)]">
-              <FiMusic className="text-spotify-green text-2xl" />
+    <>
+      {/* Mobile Backdrop Overlay */}
+      {isOpen && (
+        <div
+          onClick={onClose}
+          className="md:hidden fixed inset-0 z-40 bg-black/70 backdrop-blur-sm transition-opacity"
+        />
+      )}
+
+      <aside
+        className={`fixed md:relative top-0 bottom-0 left-0 z-50 w-72 md:w-64 bg-[#0b1020]/95 md:bg-[#0b1020]/80 backdrop-blur-2xl border-r border-white/10 shadow-[0_10px_40px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col transition-transform duration-300 ease-in-out ${
+          isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+        }`}
+      >
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(29,185,84,0.14),transparent_36%),radial-gradient(circle_at_90%_10%,rgba(94,234,212,0.12),transparent_32%)] blur-3xl" aria-hidden />
+        <div className="relative z-10 flex flex-col h-full">
+          {/* Logo & Mobile Close Button */}
+          <div className="p-6 pb-4 border-b border-white/5 bg-gradient-to-r from-white/5 via-white/0 to-white/0 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-spotify-green/15 border border-spotify-green/30 flex items-center justify-center shadow-[0_10px_30px_rgba(29,185,84,0.25)]">
+                <FiMusic className="text-spotify-green text-2xl" />
+              </div>
+              <div>
+                <h1 className="text-xl font-semibold text-white leading-tight">SK Music</h1>
+                <p className="text-[11px] uppercase tracking-[0.24em] text-white/50">Stream refined</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-xl font-semibold text-white leading-tight">SK Music</h1>
-              <p className="text-[11px] uppercase tracking-[0.24em] text-white/50">Stream refined</p>
-            </div>
+
+            {onClose && (
+              <button
+                onClick={onClose}
+                className="md:hidden p-2 rounded-xl bg-white/10 text-white/70 hover:text-white hover:bg-white/20 transition-all"
+                aria-label="Close menu"
+              >
+                <FiX size={20} />
+              </button>
+            )}
           </div>
-        </div>
 
         {/* Navigation */}
         <nav className="flex-1 px-3 py-4 space-y-2 overflow-y-auto">
@@ -277,6 +306,7 @@ const Sidebar: React.FC = () => {
         </div>
       </div>
     </aside>
+    </>
   );
 };
 

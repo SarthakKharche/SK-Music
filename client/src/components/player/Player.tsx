@@ -13,6 +13,7 @@ import {
   FiVolumeX,
   FiHeart,
   FiMaximize2,
+  FiMinimize2,
   FiDownload,
   FiCheck
 } from 'react-icons/fi';
@@ -82,10 +83,12 @@ const Player: React.FC = () => {
   const [localProgress, setLocalProgress] = useState(0);
   const [isLiked, setIsLiked] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showMobileVolume, setShowMobileVolume] = useState(false);
   const progressRef = useRef<HTMLDivElement>(null);
   const fullscreenProgressRef = useRef<HTMLDivElement>(null);
   const volumeRef = useRef<HTMLDivElement>(null);
   const fullscreenVolumeRef = useRef<HTMLDivElement>(null);
+  const mobileVolumeRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -99,6 +102,7 @@ const Player: React.FC = () => {
   };
 
   const getActiveVolumeRef = () => {
+    if (showMobileVolume && mobileVolumeRef.current) return mobileVolumeRef.current;
     return isFullscreen ? fullscreenVolumeRef.current : volumeRef.current;
   };
 
@@ -149,29 +153,38 @@ const Player: React.FC = () => {
     }
   };
 
-  // Mouse drag handlers for progress and volume sliders
+  // Mouse & Touch drag handlers for progress and volume sliders
   useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
+    const handleMove = (clientX: number) => {
       if (isDraggingProgress) {
-        const newTime = calculateNewTime(e.clientX);
+        const newTime = calculateNewTime(clientX);
         if (newTime !== undefined) {
           setLocalProgress(newTime);
         }
       }
       if (isDraggingVolume) {
-        const newVol = calculateNewVolume(e.clientX);
+        const newVol = calculateNewVolume(clientX);
         if (newVol !== undefined) {
           setPlayerVolume(newVol);
         }
       }
     };
 
-    const handleMouseUp = (e: MouseEvent) => {
+    const handleMouseMove = (e: MouseEvent) => handleMove(e.clientX);
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches && e.touches[0]) {
+        handleMove(e.touches[0].clientX);
+      }
+    };
+
+    const handleUp = (clientX?: number) => {
       if (isDraggingProgress) {
-        const newTime = calculateNewTime(e.clientX);
-        if (newTime !== undefined) {
-          setLocalProgress(newTime);
-          seek(newTime);
+        if (clientX !== undefined) {
+          const newTime = calculateNewTime(clientX);
+          if (newTime !== undefined) {
+            setLocalProgress(newTime);
+            seek(newTime);
+          }
         }
         setIsDraggingProgress(false);
       }
@@ -180,16 +193,26 @@ const Player: React.FC = () => {
       }
     };
 
+    const handleMouseUp = (e: MouseEvent) => handleUp(e.clientX);
+    const handleTouchEnd = (e: TouchEvent) => {
+      const clientX = e.changedTouches?.[0]?.clientX;
+      handleUp(clientX);
+    };
+
     if (isDraggingProgress || isDraggingVolume) {
       window.addEventListener('mousemove', handleMouseMove);
       window.addEventListener('mouseup', handleMouseUp);
+      window.addEventListener('touchmove', handleTouchMove);
+      window.addEventListener('touchend', handleTouchEnd);
     }
 
     return () => {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('touchend', handleTouchEnd);
     };
-  }, [isDraggingProgress, isDraggingVolume, duration, isFullscreen, seek, setPlayerVolume]);
+  }, [isDraggingProgress, isDraggingVolume, duration, isFullscreen, showMobileVolume, seek, setPlayerVolume]);
 
   // Fullscreen handler
   const toggleFullscreen = async () => {
@@ -579,10 +602,10 @@ const Player: React.FC = () => {
                 
                 <button 
                   onClick={toggleFullscreen}
-                  className="text-spotify-green hover:text-white transition-colors p-2 ml-4"
-                  title="Exit Fullscreen (ESC)"
+                  className="text-spotify-green hover:text-white transition-colors p-2 ml-4 cursor-pointer"
+                  title={isFullscreen ? 'Exit Fullscreen (ESC)' : 'Fullscreen (F)'}
                 >
-                  <FiMaximize2 size={20} />
+                  {isFullscreen ? <FiMinimize2 size={24} /> : <FiMaximize2 size={24} />}
                 </button>
               </div>
             </div>
@@ -731,16 +754,26 @@ const Player: React.FC = () => {
 
       {/* Right: Volume & Other Controls */}
       <div className="flex items-center justify-end gap-3 min-w-[180px]">
-        <div className="flex items-center gap-2">
+        {/* Touch & Mobile Volume Control Popover */}
+        <div className="relative flex items-center gap-2">
           <button 
-            onClick={toggleMute}
-            className="text-[#b3b3b3] hover:text-white transition-colors p-1"
+            onClick={() => {
+              if (window.innerWidth <= 768) {
+                setShowMobileVolume(!showMobileVolume);
+              } else {
+                toggleMute();
+              }
+            }}
+            className="text-[#b3b3b3] hover:text-white transition-colors p-2 rounded-lg hover:bg-white/10 active:scale-95"
+            title="Volume"
           >
-            <VolumeIcon size={16} />
+            <VolumeIcon size={18} />
           </button>
+
+          {/* Desktop Volume Slider */}
           <div 
             ref={volumeRef}
-            className="w-24 h-2 bg-[#4d4d4d] rounded-full cursor-pointer group relative py-0.5"
+            className="hidden sm:block w-24 h-2 bg-[#4d4d4d] rounded-full cursor-pointer group relative py-0.5"
             onClick={handleVolumeClick}
             onMouseDown={handleVolumeMouseDown}
           >
@@ -755,14 +788,43 @@ const Player: React.FC = () => {
               />
             </div>
           </div>
+
+          {/* Mobile Volume Control Popup Modal */}
+          {showMobileVolume && (
+            <div className="sm:hidden absolute bottom-12 right-0 bg-[#121826]/95 backdrop-blur-2xl border border-white/15 p-4 rounded-2xl shadow-2xl flex flex-col items-center gap-3 z-50 w-48">
+              <div className="flex items-center justify-between w-full text-xs font-semibold text-white/80">
+                <span>Volume</span>
+                <span>{Math.round(volumePercent)}%</span>
+              </div>
+              <div 
+                ref={mobileVolumeRef}
+                className="w-full h-4 bg-white/20 rounded-full cursor-pointer relative py-1"
+                onClick={handleVolumeClick}
+                onMouseDown={handleVolumeMouseDown}
+              >
+                <div 
+                  className="h-full bg-spotify-green rounded-full relative"
+                  style={{ width: `${volumePercent}%` }}
+                >
+                  <div className="absolute right-0 top-1/2 -translate-y-1/2 w-5 h-5 bg-white rounded-full shadow-lg" />
+                </div>
+              </div>
+              <button
+                onClick={() => setShowMobileVolume(false)}
+                className="text-xs text-white/60 hover:text-white mt-1 underline"
+              >
+                Done
+              </button>
+            </div>
+          )}
         </div>
 
         <button 
           onClick={toggleFullscreen}
-          className="text-[#b3b3b3] hover:text-white transition-colors p-1"
-          title="Fullscreen (F)"
+          className="text-[#b3b3b3] hover:text-white transition-colors p-2 rounded-lg hover:bg-white/10"
+          title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
         >
-          <FiMaximize2 size={14} />
+          {isFullscreen ? <FiMinimize2 size={18} /> : <FiMaximize2 size={18} />}
         </button>
       </div>
       </>
