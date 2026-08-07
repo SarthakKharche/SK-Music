@@ -22,7 +22,7 @@ router.get('/saavn-search', async (req: Request, res: Response) => {
 
     console.log(`[AUDIO DOWNLOAD] Request - trackId: ${trackId}, youtubeId: ${youtubeId}, query: ${rawQuery}`);
 
-    // If youtubeId is not 11 chars, resolve via audioResolverService or Piped search
+    // If youtubeId is not 11 chars, attempt quick search
     if (!youtubeId || youtubeId.length !== 11) {
       const searchRes = await audioResolverService.resolveAudioSources({
         trackName: rawQuery,
@@ -55,66 +55,71 @@ router.get('/saavn-search', async (req: Request, res: Response) => {
       }
     }
 
-    if (!youtubeId || youtubeId.length !== 11) {
-      return res.status(404).json({ error: 'Could not find YouTube track for download' });
-    }
-
-    // Use fast Cobalt / Invidious / ytdl-core direct audio URL extraction
-    const directAudio = await audioResolverService.getDirectAudioUrl(youtubeId);
-    let directUrl: string | null = directAudio?.url || null;
-
-    // Fallback: yt-dlp on EC2 if directUrl is missing
-    if (!directUrl) {
-      try {
-        const { exec } = await import('child_process');
-        const util = await import('util');
-        const execPromise = util.promisify(exec);
-        const { stdout } = await execPromise(
-          `yt-dlp -f bestaudio --no-check-certificates --extractor-args "youtube:player_client=android,web" -g "https://www.youtube.com/watch?v=${youtubeId}"`,
-          { timeout: 15000 }
-        );
-        if (stdout && stdout.trim().startsWith('http')) {
-          directUrl = stdout.trim().split('\n')[0];
-        }
-      } catch (e) {
-        console.warn('[AUDIO DOWNLOAD] yt-dlp fallback error:', e);
-      }
-    }
-
-    if (!directUrl) {
-      return res.status(404).json({ error: 'Failed to extract direct audio stream' });
-    }
-
-    console.log(`[AUDIO DOWNLOAD] Streaming binary audio for ${youtubeId}...`);
-
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Headers', '*');
     res.setHeader('Content-Type', 'audio/mpeg');
 
-    try {
-      const audioStreamRes = await axios.get(directUrl, {
-        responseType: 'stream',
-        timeout: 25000,
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': '*/*',
-        },
+    // Method 1: Stream directly via yt-dlp child_process stdout
+    if (youtubeId && youtubeId.length === 11) {
+      const { spawn } = await import('child_process');
+      const targetUrl = `https://www.youtube.com/watch?v=${youtubeId}`;
+      
+      console.log(`[AUDIO DOWNLOAD] Spawning yt-dlp binary stream for: ${targetUrl}`);
+      
+      const ytdlpProc = spawn('yt-dlp', [
+        '-f', 'bestaudio/best',
+        '--no-check-certificates',
+        '--extractor-args', 'youtube:player_client=mweb,android,web',
+        '-o', '-',
+        targetUrl
+      ]);
+
+      ytdlpProc.stdout.pipe(res);
+
+      ytdlpProc.on('error', (err) => {
+        console.error('[AUDIO DOWNLOAD] yt-dlp spawn error:', err);
+        if (!res.headersSent) {
+          res.status(500).json({ error: 'yt-dlp stream failed' });
+        }
       });
 
-      if (audioStreamRes.status >= 200 && audioStreamRes.status < 300) {
-        if (audioStreamRes.headers['content-length']) {
-          res.setHeader('Content-Length', audioStreamRes.headers['content-length']);
-        }
-        return audioStreamRes.data.pipe(res);
-      }
-    } catch (streamErr) {
-      console.warn('[AUDIO DOWNLOAD] Stream proxy failed, redirecting to direct CDN URL:', streamErr);
+      return;
     }
 
-    return res.redirect(directUrl);
+    // Method 2: Search and stream directly via yt-dlp search query
+    if (rawQuery) {
+      const { spawn } = await import('child_process');
+      const cleanSearch = rawQuery.replace(/[\(\)\[\]"'\-_]/g, ' ').replace(/\s+/g, ' ').trim();
+      
+      console.log(`[AUDIO DOWNLOAD] Spawning yt-dlp query stream for: ytsearch1:${cleanSearch}`);
+
+      const ytdlpProc = spawn('yt-dlp', [
+        '-f', 'bestaudio/best',
+        '--no-check-certificates',
+        '--extractor-args', 'youtube:player_client=mweb,android,web',
+        '-o', '-',
+        `ytsearch1:${cleanSearch}`
+      ]);
+
+      ytdlpProc.stdout.pipe(res);
+
+      ytdlpProc.on('error', (err) => {
+        console.error('[AUDIO DOWNLOAD] yt-dlp query spawn error:', err);
+        if (!res.headersSent) {
+          res.status(500).json({ error: 'yt-dlp query stream failed' });
+        }
+      });
+
+      return;
+    }
+
+    return res.status(404).json({ error: 'Could not resolve track for audio download' });
   } catch (error) {
     console.error('YouTube audio download error:', error);
-    return res.status(500).json({ error: 'YouTube audio download failed' });
+    if (!res.headersSent) {
+      return res.status(500).json({ error: 'YouTube audio download failed' });
+    }
+    return;
   }
 });
 
