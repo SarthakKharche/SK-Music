@@ -100,21 +100,7 @@ const LibraryPage: React.FC = () => {
     <div className="min-h-screen pb-32 px-4 py-4 max-w-5xl mx-auto">
       {/* Top Header */}
       <div className="flex items-center justify-between gap-4 mb-4">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => navigate('/settings')}
-            className="w-9 h-9 rounded-full overflow-hidden border border-white/20 hover:scale-105 transition-transform"
-          >
-            {user?.picture ? (
-              <img src={user.picture} alt={userDisplayName} className="w-full h-full object-cover" />
-            ) : (
-              <div className="w-full h-full bg-spotify-green/20 text-spotify-green flex items-center justify-center font-bold text-sm">
-                {userDisplayName.charAt(0)}
-              </div>
-            )}
-          </button>
-          <h1 className="text-2xl font-bold text-white tracking-tight">Your Library</h1>
-        </div>
+        <h1 className="text-2xl font-bold text-white tracking-tight">Your Library</h1>
 
         <div className="flex items-center gap-3">
           <button
