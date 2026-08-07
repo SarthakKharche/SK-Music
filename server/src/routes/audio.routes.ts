@@ -94,9 +94,34 @@ router.get('/saavn-search', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Stream URL resolution failed' });
     }
 
-    // Redirect browser directly to audio stream URL
+    // Stream binary audio directly from server to client to prevent CORS / hotlink blocks
+    console.log(`[AUDIO DOWNLOAD] Streaming audio binary from URL: ${directUrl.substring(0, 80)}...`);
+
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Headers', '*');
+
+    try {
+      const audioStreamRes = await axios.get(directUrl, {
+        responseType: 'stream',
+        timeout: 15000,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': '*/*',
+        },
+      });
+
+      if (audioStreamRes.status >= 200 && audioStreamRes.status < 300) {
+        res.setHeader('Content-Type', audioStreamRes.headers['content-type'] || 'audio/mpeg');
+        if (audioStreamRes.headers['content-length']) {
+          res.setHeader('Content-Length', audioStreamRes.headers['content-length']);
+        }
+        return audioStreamRes.data.pipe(res);
+      }
+    } catch (streamErr) {
+      console.warn('[AUDIO DOWNLOAD] Stream proxy failed, falling back to direct redirect:', streamErr);
+    }
+
+    // Fallback: Redirect directly
     return res.redirect(directUrl);
   } catch (error) {
     console.error('Audio download error:', error);

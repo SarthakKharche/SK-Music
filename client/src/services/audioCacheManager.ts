@@ -196,7 +196,7 @@ class AudioCacheManager {
   /**
    * Download and cache audio
    */
-  async cacheAudio(track: Track, source?: AudioSource): Promise<void> {
+  async cacheAudio(track: Track, _source?: AudioSource): Promise<void> {
     const trackId = track.id;
 
     // Prevent duplicate downloads
@@ -205,28 +205,6 @@ class AudioCacheManager {
     }
 
     const downloadPromise = (async () => {
-      let youtubeId = localStorage.getItem(`youtube_${track.id}`) || 
-                      (track.id.startsWith('yt-') ? track.id.replace('yt-', '') : null);
-      
-      // If the ID itself looks like a YouTube ID (length 11), use it directly
-      if (!youtubeId && track.id.length === 11) {
-        youtubeId = track.id;
-      }
-
-      // If we don't have the YouTube ID, resolve it via the API
-      if (!youtubeId || youtubeId.length !== 11) {
-        const resolved = source || await this.resolveAudioSource(track);
-        if (resolved?.youtubeId) {
-          youtubeId = resolved.youtubeId;
-          localStorage.setItem(`youtube_${track.id}`, youtubeId);
-        }
-      }
-
-      if (!youtubeId || youtubeId.length !== 11) {
-        throw new Error('No YouTube ID available for this track');
-      }
-
-      // Call the internal downloader directly to avoid queue key conflicts
       await this._downloadFromYouTube(track);
     })();
 
