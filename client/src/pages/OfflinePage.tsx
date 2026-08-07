@@ -65,23 +65,32 @@ const OfflinePage: React.FC = () => {
     }
   }, [searchQuery]);
 
+  const [syncProgress, setSyncProgress] = useState<string | null>(null);
+
   const handleSyncAll = async () => {
     setSyncingAll(true);
+    setSyncProgress('Preparing downloads...');
     try {
       const { audioCacheManager } = await import('../services/audioCacheManager');
+      const unCached = [];
       for (const track of offlineTracks) {
         const isCached = await indexedDB.isAudioCached(track.id);
-        if (!isCached) {
-          try {
-            await audioCacheManager.cacheAudio(track);
-          } catch (e) {
-            console.warn('Sync item failed:', track.name, e);
-          }
+        if (!isCached) unCached.push(track);
+      }
+
+      for (let i = 0; i < unCached.length; i++) {
+        const track = unCached[i];
+        setSyncProgress(`Downloading ${i + 1}/${unCached.length}: ${track.name || 'Song'}...`);
+        try {
+          await audioCacheManager.cacheAudio(track);
+        } catch (e) {
+          console.warn('[SYNC] Failed to download item:', track.name, e);
         }
       }
       await loadOfflineTracks();
     } finally {
       setSyncingAll(false);
+      setSyncProgress(null);
     }
   };
 
@@ -174,7 +183,7 @@ const OfflinePage: React.FC = () => {
               ) : (
                 <FiDownload size={16} />
               )}
-              {syncingAll ? 'Syncing...' : 'Sync Account Downloads'}
+              {syncProgress || (syncingAll ? 'Syncing...' : 'Sync Account Downloads')}
             </button>
           )}
         </div>
