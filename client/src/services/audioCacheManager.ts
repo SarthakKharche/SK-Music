@@ -240,6 +240,16 @@ class AudioCacheManager {
     await indexedDB.cacheAudio(cachedAudio);
     console.log(`✅ Downloaded for offline: ${track.name} (${(blob.size / 1024 / 1024).toFixed(2)} MB)`);
 
+    // Sync download preference to user account across devices
+    try {
+      await api.post('/user/offline-preferences', {
+        trackIds: [track.id],
+        isOfflinePreferred: true,
+      });
+    } catch (syncErr) {
+      console.warn('[OFFLINE SYNC] Account preference sync optional:', syncErr);
+    }
+
     this.notifySyncStatus({
       trackId: track.id,
       status: 'cached',

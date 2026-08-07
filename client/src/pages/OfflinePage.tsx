@@ -224,8 +224,8 @@ const OfflinePage: React.FC = () => {
                 </div>
 
                 {/* Duration */}
-                <div className="flex items-center justify-end text-spotify-lightgray text-sm">
-                  {formatDuration(track.durationMs)}
+                <div className="flex items-center justify-end text-spotify-lightgray text-sm font-mono">
+                  {formatDuration(track.durationMs && track.durationMs > 0 ? track.durationMs : 180000)}
                 </div>
 
                 {/* Delete Button */}
