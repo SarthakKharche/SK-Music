@@ -67,10 +67,10 @@ router.get('/saavn-search', async (req: Request, res: Response) => {
       console.log(`[AUDIO DOWNLOAD] Spawning fast yt-dlp binary stream for: ${targetUrl}`);
       
       const ytdlpProc = spawn('yt-dlp', [
-        '-f', '140/m4a/bestaudio',
+        '-f', 'bestaudio/best',
         '--no-playlist',
         '--no-check-certificates',
-        '--extractor-args', 'youtube:player_client=android,web',
+        '--extractor-args', 'youtube:player_client=mweb,android,web',
         '-o', '-',
         targetUrl
       ]);
@@ -95,10 +95,10 @@ router.get('/saavn-search', async (req: Request, res: Response) => {
       console.log(`[AUDIO DOWNLOAD] Spawning fast yt-dlp query stream for: ytsearch1:${cleanSearch}`);
 
       const ytdlpProc = spawn('yt-dlp', [
-        '-f', '140/m4a/bestaudio',
+        '-f', 'bestaudio/best',
         '--no-playlist',
         '--no-check-certificates',
-        '--extractor-args', 'youtube:player_client=android,web',
+        '--extractor-args', 'youtube:player_client=mweb,android,web',
         '-o', '-',
         `ytsearch1:${cleanSearch}`
       ]);
