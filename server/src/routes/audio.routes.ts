@@ -57,19 +57,20 @@ router.get('/saavn-search', async (req: Request, res: Response) => {
 
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Headers', '*');
-    res.setHeader('Content-Type', 'audio/mpeg');
+    res.setHeader('Content-Type', 'audio/mp4');
 
-    // Method 1: Stream directly via yt-dlp child_process stdout
+    // Method 1: Stream directly via fast yt-dlp child_process stdout
     if (youtubeId && youtubeId.length === 11) {
       const { spawn } = await import('child_process');
       const targetUrl = `https://www.youtube.com/watch?v=${youtubeId}`;
       
-      console.log(`[AUDIO DOWNLOAD] Spawning yt-dlp binary stream for: ${targetUrl}`);
+      console.log(`[AUDIO DOWNLOAD] Spawning fast yt-dlp binary stream for: ${targetUrl}`);
       
       const ytdlpProc = spawn('yt-dlp', [
-        '-f', 'bestaudio/best',
+        '-f', '140/m4a/bestaudio',
+        '--no-playlist',
         '--no-check-certificates',
-        '--extractor-args', 'youtube:player_client=mweb,android,web',
+        '--extractor-args', 'youtube:player_client=android,web',
         '-o', '-',
         targetUrl
       ]);
@@ -86,17 +87,18 @@ router.get('/saavn-search', async (req: Request, res: Response) => {
       return;
     }
 
-    // Method 2: Search and stream directly via yt-dlp search query
+    // Method 2: Search and stream directly via fast yt-dlp query
     if (rawQuery) {
       const { spawn } = await import('child_process');
       const cleanSearch = rawQuery.replace(/[\(\)\[\]"'\-_]/g, ' ').replace(/\s+/g, ' ').trim();
       
-      console.log(`[AUDIO DOWNLOAD] Spawning yt-dlp query stream for: ytsearch1:${cleanSearch}`);
+      console.log(`[AUDIO DOWNLOAD] Spawning fast yt-dlp query stream for: ytsearch1:${cleanSearch}`);
 
       const ytdlpProc = spawn('yt-dlp', [
-        '-f', 'bestaudio/best',
+        '-f', '140/m4a/bestaudio',
+        '--no-playlist',
         '--no-check-certificates',
-        '--extractor-args', 'youtube:player_client=mweb,android,web',
+        '--extractor-args', 'youtube:player_client=android,web',
         '-o', '-',
         `ytsearch1:${cleanSearch}`
       ]);
