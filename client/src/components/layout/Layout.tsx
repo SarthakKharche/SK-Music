@@ -1,9 +1,10 @@
-import { Outlet, NavLink } from 'react-router-dom';
+import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Player from '../player/Player';
 import OfflineBanner from './OfflineBanner';
-import { Component, ReactNode, ErrorInfo, useState } from 'react';
-import { FiMenu, FiMusic, FiHome, FiSearch, FiDownload, FiHeart } from 'react-icons/fi';
+import { Component, ReactNode, ErrorInfo } from 'react';
+import { FiMusic, FiHome, FiSearch, FiDownload, FiGrid, FiUser } from 'react-icons/fi';
+import { useAuth } from '../../contexts/AuthContext';
 
 // Simple error boundary for the player
 class PlayerErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
@@ -30,7 +31,8 @@ class PlayerErrorBoundary extends Component<{ children: ReactNode }, { hasError:
 }
 
 const Layout: React.FC = () => {
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const { user } = useAuth();
+  const navigate = useNavigate();
 
   return (
     <div className="relative h-screen flex flex-col overflow-hidden text-spotify-white page-surface">
@@ -41,33 +43,40 @@ const Layout: React.FC = () => {
       {/* Offline Banner */}
       <OfflineBanner />
 
-      {/* Mobile Top Navigation Header with Hamburger Menu */}
-      <div className="md:hidden flex items-center justify-between px-4 py-3 bg-[#0b1020]/90 border-b border-white/10 backdrop-blur-xl z-30">
+      {/* Mobile Top Header with User Profile Photo -> Settings */}
+      <div className="md:hidden flex items-center justify-between px-4 py-2.5 bg-[#0b1020]/90 border-b border-white/10 backdrop-blur-xl z-30">
         <button
-          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-          className="p-2.5 rounded-xl bg-white/10 text-white hover:bg-white/20 active:scale-95 transition-all"
-          aria-label="Toggle menu"
+          onClick={() => navigate('/settings')}
+          className="flex items-center gap-2 p-1 rounded-full hover:bg-white/10 active:scale-95 transition-all"
+          title="Profile & Settings"
         >
-          <FiMenu size={22} />
+          {user?.picture ? (
+            <img
+              src={user.picture}
+              alt={user.name || 'User'}
+              className="w-8 h-8 rounded-full object-cover border border-white/20 shadow-md"
+            />
+          ) : (
+            <div className="w-8 h-8 rounded-full bg-spotify-green/20 border border-spotify-green/50 flex items-center justify-center text-spotify-green shadow-md">
+              <FiUser size={16} />
+            </div>
+          )}
         </button>
 
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-xl bg-spotify-green/20 border border-spotify-green/40 flex items-center justify-center">
-            <FiMusic className="text-spotify-green text-lg" />
+          <div className="w-7 h-7 rounded-xl bg-spotify-green/20 border border-spotify-green/40 flex items-center justify-center">
+            <FiMusic className="text-spotify-green text-sm" />
           </div>
-          <span className="text-lg font-bold text-white tracking-wide">SK Music</span>
+          <span className="text-base font-bold text-white tracking-wide">SK Music</span>
         </div>
 
-        <div className="w-10" />
+        <div className="w-8" />
       </div>
 
       {/* Main Content Area */}
       <div className="flex-1 flex overflow-hidden backdrop-blur-[1px] relative pb-16 md:pb-0">
         {/* Desktop & Mobile Responsive Sidebar Drawer */}
-        <Sidebar
-          isOpen={isMobileMenuOpen}
-          onClose={() => setIsMobileMenuOpen(false)}
-        />
+        <Sidebar />
 
         {/* Content Area */}
         <main className="flex-1 overflow-y-auto relative">
@@ -83,13 +92,13 @@ const Layout: React.FC = () => {
         <Player />
       </PlayerErrorBoundary>
 
-      {/* SPOTIFY MOBILE BOTTOM NAVIGATION BAR (Visible only on Mobile) */}
+      {/* SPOTIFY MOBILE BOTTOM NAVIGATION BAR */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#070a12]/95 backdrop-blur-2xl border-t border-white/10 px-2 py-1.5 flex items-center justify-around">
         <NavLink
           to="/"
           className={({ isActive }) =>
             `flex flex-col items-center gap-1 px-3 py-1 transition-colors ${
-              isActive ? 'text-white' : 'text-white/40 hover:text-white/70'
+              isActive ? 'text-white font-semibold' : 'text-white/40 hover:text-white/70'
             }`
           }
         >
@@ -101,7 +110,7 @@ const Layout: React.FC = () => {
           to="/search"
           className={({ isActive }) =>
             `flex flex-col items-center gap-1 px-3 py-1 transition-colors ${
-              isActive ? 'text-white' : 'text-white/40 hover:text-white/70'
+              isActive ? 'text-white font-semibold' : 'text-white/40 hover:text-white/70'
             }`
           }
         >
@@ -125,19 +134,19 @@ const Layout: React.FC = () => {
           to="/playlist/custom_liked_songs"
           className={({ isActive }) =>
             `flex flex-col items-center gap-1 px-3 py-1 transition-colors ${
-              isActive ? 'text-spotify-green' : 'text-white/40 hover:text-white/70'
+              isActive ? 'text-spotify-green font-semibold' : 'text-white/40 hover:text-white/70'
             }`
           }
         >
-          <FiHeart size={20} />
-          <span className="text-[10px] font-medium tracking-tight">Liked</span>
+          <FiGrid size={20} />
+          <span className="text-[10px] font-medium tracking-tight">Your Library</span>
         </NavLink>
 
         <NavLink
           to="/offline"
           className={({ isActive }) =>
             `flex flex-col items-center gap-1 px-3 py-1 transition-colors ${
-              isActive ? 'text-white' : 'text-white/40 hover:text-white/70'
+              isActive ? 'text-white font-semibold' : 'text-white/40 hover:text-white/70'
             }`
           }
         >
