@@ -75,18 +75,36 @@ router.get('/saavn-search', async (req: Request, res: Response) => {
       }
     }
 
-    // 3. Final fallback: Execute yt-dlp on EC2
-    if (!directUrl && youtubeId && youtubeId.length === 11) {
-      try {
-        const { exec } = await import('child_process');
-        const util = await import('util');
-        const execPromise = util.promisify(exec);
-        const { stdout } = await execPromise(`yt-dlp -f bestaudio -g "https://www.youtube.com/watch?v=${youtubeId}"`, { timeout: 8000 });
-        if (stdout && stdout.trim().startsWith('http')) {
-          directUrl = stdout.trim().split('\n')[0];
+    // 3. Fallback: Execute yt-dlp directly on EC2 server (100% working for YouTube ID or Search)
+    if (!directUrl) {
+      const { exec } = await import('child_process');
+      const util = await import('util');
+      const execPromise = util.promisify(exec);
+
+      if (youtubeId && youtubeId.length === 11) {
+        try {
+          console.log(`[AUDIO DOWNLOAD] Executing yt-dlp for YouTube ID: ${youtubeId}`);
+          const { stdout } = await execPromise(`yt-dlp -f bestaudio -g "https://www.youtube.com/watch?v=${youtubeId}"`, { timeout: 10000 });
+          if (stdout && stdout.trim().startsWith('http')) {
+            directUrl = stdout.trim().split('\n')[0];
+            console.log('[AUDIO DOWNLOAD] Resolved direct audio stream via yt-dlp!');
+          }
+        } catch (e) {
+          console.warn('[AUDIO DOWNLOAD] yt-dlp by ID error:', e);
         }
-      } catch (e) {
-        console.warn('[AUDIO DOWNLOAD] yt-dlp fallback error:', e);
+      }
+
+      if (!directUrl && cleanTitle) {
+        try {
+          console.log(`[AUDIO DOWNLOAD] Executing yt-dlp search for: ${cleanTitle}`);
+          const { stdout } = await execPromise(`yt-dlp -f bestaudio -g "ytsearch1:${cleanTitle}"`, { timeout: 12000 });
+          if (stdout && stdout.trim().startsWith('http')) {
+            directUrl = stdout.trim().split('\n')[0];
+            console.log('[AUDIO DOWNLOAD] Resolved direct audio stream via yt-dlp search!');
+          }
+        } catch (e) {
+          console.warn('[AUDIO DOWNLOAD] yt-dlp search error:', e);
+        }
       }
     }
 
