@@ -455,39 +455,37 @@ class IndexedDBManager {
       return [];
     }
 
-    // Get track IDs that have cached audio
-    const cachedTrackIds = new Set(cachedAudio.map(a => a.trackId));
-    
-    // Try to get track metadata from cached audio first and attach real cached durationMs
-    const tracksFromCache: Track[] = cachedAudio
-      .filter(a => a.track)
-      .map(a => ({
-        ...a.track!,
-        durationMs: (a.track!.durationMs && a.track!.durationMs > 0) ? a.track!.durationMs : (a.durationMs || 180000),
-      }));
-
-    // For tracks without embedded metadata, try to find them in listening history
-    const missingTrackIds = cachedAudio
-      .filter(a => !a.track)
-      .map(a => a.trackId);
-
-    if (missingTrackIds.length > 0) {
-      // Get listening history to find metadata for cached tracks
-      const historyData = await db.get('metadata', 'listening_history');
-      if (historyData && Array.isArray(historyData.data)) {
-        const historyTracks = historyData.data
-          .filter((item: { track: Track }) => missingTrackIds.includes(item.track.id))
-          .map((item: { track: Track }) => item.track);
-        tracksFromCache.push(...historyTracks);
-      }
-    }
-
-    // Remove duplicates by track ID
+    // Remove duplicates by track ID and repair 3:00 fallback durations dynamically
     const uniqueTracks = new Map<string, Track>();
-    for (const track of tracksFromCache) {
-      if (cachedTrackIds.has(track.id)) {
-        uniqueTracks.set(track.id, track);
+    for (const item of cachedAudio) {
+      if (!item.track) continue;
+      
+      let trackObj = { ...item.track };
+      
+      // If duration is stuck on 180000ms (3:00), compute real duration from blob metadata
+      if ((!trackObj.durationMs || trackObj.durationMs === 180000) && item.blob) {
+        try {
+          const tempAudio = document.createElement('audio');
+          const tempUrl = URL.createObjectURL(item.blob);
+          tempAudio.src = tempUrl;
+          await new Promise<void>((res) => {
+            tempAudio.onloadedmetadata = () => {
+              if (tempAudio.duration && !isNaN(tempAudio.duration)) {
+                trackObj.durationMs = Math.round(tempAudio.duration * 1000);
+              }
+              URL.revokeObjectURL(tempUrl);
+              res();
+            };
+            tempAudio.onerror = () => {
+              URL.revokeObjectURL(tempUrl);
+              res();
+            };
+            setTimeout(res, 500);
+          });
+        } catch {}
       }
+
+      uniqueTracks.set(trackObj.id, trackObj);
     }
 
     return Array.from(uniqueTracks.values());
