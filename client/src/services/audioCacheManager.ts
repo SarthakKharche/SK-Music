@@ -162,7 +162,6 @@ class AudioCacheManager {
 
     const cleanTitle = (resolvedTrack.name || 'Song').replace(/[\(\)\[\]"'\-_]/g, ' ').replace(/\s+/g, ' ').trim();
     const primaryArtist = resolvedTrack.artists?.[0]?.name?.split(',')[0]?.split('&')[0]?.trim() || '';
-    const query = encodeURIComponent(`${cleanTitle} ${primaryArtist}`);
 
     this.notifySyncStatus({
       trackId: resolvedTrack.id,
@@ -204,10 +203,15 @@ class AudioCacheManager {
     });
 
     let blob: Blob | null = null;
+    const rawSearchQuery = `${cleanTitle} ${primaryArtist}`.trim();
 
     // Fetch audio stream via Axios api.get (handles CORS & base URL)
     try {
-      const audioResponse = await api.get(`/audio/saavn-search?query=${query}&trackId=${targetTrackId}`, {
+      const audioResponse = await api.get('/audio/saavn-search', {
+        params: {
+          query: rawSearchQuery,
+          trackId: targetTrackId,
+        },
         responseType: 'blob',
         timeout: 30000,
       });
@@ -224,10 +228,12 @@ class AudioCacheManager {
       console.warn('[OFFLINE] Axios API download failed:', err);
     }
 
-    // Fallback attempt via native fetch
+    // Fallback attempt via native fetch using correct backend base URL
     if (!blob) {
       try {
-        const fetchRes = await fetch(`/api/audio/saavn-search?query=${query}&trackId=${targetTrackId}`);
+        const baseUrl = api.defaults.baseURL || '/api';
+        const fallbackUrl = `${baseUrl}/audio/saavn-search?query=${encodeURIComponent(rawSearchQuery)}&trackId=${encodeURIComponent(targetTrackId)}`;
+        const fetchRes = await fetch(fallbackUrl);
         if (fetchRes.ok) {
           const fetchedBlob = await fetchRes.blob();
           if (fetchedBlob.size >= 30000) {
