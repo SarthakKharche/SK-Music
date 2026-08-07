@@ -81,12 +81,14 @@ router.get('/saavn-search', async (req: Request, res: Response) => {
           if (mediaUrl && mediaUrl.includes('saavncdn')) streamUrl = mediaUrl;
         }
 
-        // Extract direct 320kbps AAC/MP4 URL from raw response if needed
+        // Target 160kbps optimized AAC/MP4 stream URL for lightweight fast downloads (~3MB vs 10.5MB)
         if (!streamUrl) {
           const rawStr = JSON.stringify(detailsRes.data);
           const matches = rawStr.match(/https:\/\/aac\.saavncdn\.com\/[^\s"']+/g);
           if (matches && matches.length > 0) {
-            streamUrl = matches[matches.length - 1]; // Highest quality URL is last
+            // Find 160kbps or 96kbps match for compact download size (~3MB)
+            const optMatch = matches.find(url => url.includes('_160.mp4') || url.includes('_96.mp4')) || matches[0];
+            streamUrl = optMatch;
           }
         }
 
