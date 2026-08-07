@@ -63,7 +63,7 @@ router.get('/saavn-search', async (req: Request, res: Response) => {
       const cleanSearch = rawQuery.replace(/[\(\)\[\]"'\-_]/g, ' ').replace(/\s+/g, ' ').trim();
       console.log(`[AUDIO DOWNLOAD] Resolving 320kbps audio CDN stream for query: ${cleanSearch}`);
 
-      const searchRes = await axios.get(`https://jiosaavn-api-private.vercel.app/search/songs?query=${encodeURIComponent(cleanSearch)}`, { timeout: 6000 });
+      const searchRes = await axios.get(`https://jiosaavn-api-private.vercel.app/search/songs?q=${encodeURIComponent(cleanSearch)}`, { timeout: 6000 });
       const results = searchRes.data?.data?.results || searchRes.data?.results;
 
       if (results && results.length > 0) {

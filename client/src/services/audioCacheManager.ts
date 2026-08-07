@@ -132,38 +132,13 @@ class AudioCacheManager {
     }
   }
 
-  /**
-   * Download audio from JioSaavn CDN directly in browser
-   */
   private async _downloadFromYouTube(track: Track): Promise<CachedAudio> {
-    let resolvedTrack = { ...track };
-
-    // If track metadata is missing or "Unknown Track", fetch oEmbed metadata
-    if ((!resolvedTrack.name || resolvedTrack.name.toLowerCase().includes('unknown')) && navigator.onLine) {
-      let ytId = resolvedTrack.id;
-      if (ytId.startsWith('yt-')) ytId = ytId.replace('yt-', '');
-
-      if (ytId && ytId.length === 11) {
-        try {
-          const oembedRes = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${ytId}&format=json`);
-          if (oembedRes.ok) {
-            const oembed = await oembedRes.json();
-            if (oembed?.title) {
-              resolvedTrack.name = oembed.title;
-              resolvedTrack.artists = [{ id: 'artist-1', name: oembed.author_name || 'YouTube Music' }];
-              resolvedTrack.album = { id: 'album-1', name: 'YouTube Music', imageUrl: oembed.thumbnail_url || '' };
-            }
-          }
-        } catch (oeErr) {
-          console.warn('[OFFLINE] oEmbed metadata resolution skipped:', oeErr);
-        }
-      }
-    }
-
-    const cleanTitle = (resolvedTrack.name || 'Song').replace(/[\(\)\[\]"'\-_]/g, ' ').replace(/\s+/g, ' ').trim();
+    const cleanTitle = (track.name || 'Song').replace(/[\(\)\[\]"'\-_]/g, ' ').replace(/\s+/g, ' ').trim();
+    const primaryArtist = track.artists?.[0]?.name?.split(',')[0]?.split('&')[0]?.trim() || '';
+    const query = encodeURIComponent(`${cleanTitle} ${primaryArtist}`.trim());
 
     this.notifySyncStatus({
-      trackId: resolvedTrack.id,
+      trackId: track.id,
       status: 'downloading',
       progress: 10,
     });
@@ -202,68 +177,24 @@ class AudioCacheManager {
     });
 
     let blob: Blob | null = null;
-    const searchTitleOnly = cleanTitle;
 
-    // 1. Primary: Download audio stream via Express backend endpoint
+    // Fetch audio stream via Axios api.get
     try {
-      const audioResponse = await api.get('/audio/saavn-search', {
-        params: {
-          query: searchTitleOnly,
-          trackId: targetTrackId,
-        },
+      const audioResponse = await api.get(`/audio/saavn-search?query=${query}&trackId=${targetTrackId}`, {
         responseType: 'blob',
         timeout: 30000,
       });
 
       if (audioResponse.data && audioResponse.data.size >= 30000) {
         blob = audioResponse.data;
+        this.notifySyncStatus({
+          trackId: track.id,
+          status: 'downloading',
+          progress: 80,
+        });
       }
     } catch (err) {
-      console.warn('[OFFLINE] Express API download failed, trying direct browser JioSaavn CDN fallback:', err);
-    }
-
-    // 2. Direct Browser JioSaavn CDN Fallback (Bypasses backend completely if server is unreachable)
-    if (!blob && navigator.onLine) {
-      try {
-        console.log('[OFFLINE] Executing direct JioSaavn CDN browser fetch for:', searchTitleOnly);
-        const jioSearchRes = await fetch(`https://jiosaavn-api-private.vercel.app/search/songs?query=${encodeURIComponent(searchTitleOnly)}`);
-        if (jioSearchRes.ok) {
-          const jioSearchData = await jioSearchRes.json();
-          const songId = jioSearchData?.data?.results?.[0]?.id || jioSearchData?.results?.[0]?.id;
-
-          if (songId) {
-            const jioDetailRes = await fetch(`https://jiosaavn-api-private.vercel.app/song?id=${songId}`);
-            if (jioDetailRes.ok) {
-              const jioDetailData = await jioDetailRes.json();
-              const rawStr = JSON.stringify(jioDetailData);
-              const matches = rawStr.match(/https:\/\/aac\.saavncdn\.com\/[^\s"']+/g);
-
-              if (matches && matches.length > 0) {
-                const optMatch = matches.find(url => url.includes('_160.mp4') || url.includes('_96.mp4')) || matches[0];
-                console.log('[OFFLINE] Direct JioSaavn CDN audio URL resolved:', optMatch.substring(0, 60));
-                
-                const cdnAudioRes = await fetch(optMatch);
-                if (cdnAudioRes.ok) {
-                  const cdnBlob = await cdnAudioRes.blob();
-                  if (cdnBlob.size >= 30000) {
-                    blob = cdnBlob;
-                  }
-                }
-              }
-            }
-          }
-        }
-      } catch (jioDirectErr) {
-        console.warn('[OFFLINE] Direct JioSaavn CDN fetch failed:', jioDirectErr);
-      }
-    }
-
-    if (blob && blob.size >= 30000) {
-      this.notifySyncStatus({
-        trackId: track.id,
-        status: 'downloading',
-        progress: 80,
-      });
+      console.warn('[OFFLINE] Axios API download failed:', err);
     }
 
     if (!blob || blob.size < 30000) {
