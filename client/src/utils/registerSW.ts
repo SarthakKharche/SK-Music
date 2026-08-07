@@ -1,5 +1,3 @@
-import { Workbox } from 'workbox-window';
-
 /**
  * Register Service Worker for PWA functionality
  */
@@ -9,31 +7,22 @@ export const registerSW = (): void => {
   }
 
   if ('serviceWorker' in navigator) {
-    const wb = new Workbox('/sw.js');
-
-    wb.addEventListener('installed', (event) => {
-      if (event.isUpdate) {
-        console.log('New version installed, reloading...');
-        window.location.reload();
-      } else {
-        console.log('Service Worker installed for the first time.');
+    // Unregister stale legacy service workers
+    navigator.serviceWorker.getRegistrations().then((registrations) => {
+      for (const registration of registrations) {
+        registration.unregister();
       }
     });
 
-    wb.addEventListener('waiting', () => {
-      wb.messageSkipWaiting();
-    });
-
-    wb.register()
-      .then((reg) => {
-        console.log('Service Worker registered successfully.');
-        if (reg) {
-          reg.update();
+    if ('caches' in window) {
+      caches.keys().then((names) => {
+        for (const name of names) {
+          if (name.includes('workbox') || name.includes('sw')) {
+            caches.delete(name);
+          }
         }
-      })
-      .catch((error) => {
-        console.error('Service Worker registration failed:', error);
       });
+    }
   }
 };
 
