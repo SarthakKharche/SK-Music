@@ -442,13 +442,13 @@ const Player: React.FC = () => {
       ref={playerRef}
       className={`${
         isFullscreen 
-          ? 'fixed inset-0 z-50 bg-black flex flex-col items-center justify-center p-8 overflow-y-auto overflow-x-hidden' 
+          ? 'fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center p-8 overflow-y-auto overflow-x-hidden' 
           : 'h-[90px] bg-[#181818] border-t border-[#282828] px-4 grid grid-cols-3 items-center'
       }`}
     >
       {isFullscreen ? (
         // Fullscreen Layout with Fixed Blurred Card Background
-        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center p-8 overflow-y-auto overflow-x-hidden">
+        <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center p-8 overflow-y-auto overflow-x-hidden">
           {/* Fixed Glowing Background Artwork */}
           {albumImageUrl ? (
             <img
@@ -790,7 +790,7 @@ const Player: React.FC = () => {
           </div>
 
           {/* MOBILE SPOTIFY FLOATING MINI-PLAYER CARD (Visible only on Mobile) */}
-          <div className="md:hidden fixed bottom-[68px] left-2 right-2 z-40 bg-[#242936]/95 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-[0_12px_36px_rgba(0,0,0,0.7)] overflow-hidden transition-all duration-300">
+          <div className="md:hidden fixed bottom-[68px] left-2 right-2 z-50 bg-[#242936]/95 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-[0_12px_36px_rgba(0,0,0,0.7)] overflow-hidden transition-all duration-300">
             {/* Top Attached Thin Progress Line */}
             <div className="w-full h-1 bg-white/10 relative">
               <div 
