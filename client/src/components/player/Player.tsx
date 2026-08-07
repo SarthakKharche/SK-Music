@@ -612,222 +612,248 @@ const Player: React.FC = () => {
           </div>
         </div>
       ) : (
-        // Normal Layout
+        // Normal Layout (Desktop 3-Column Footer + Mobile Spotify Floating Mini Player & Bottom Nav)
         <>
-      {/* Left: Now Playing */}
-      <div className="flex items-center gap-4 min-w-[180px]">
-        {albumImageUrl && (
-          <img
-            src={albumImageUrl}
-            alt={albumName}
-            className="w-14 h-14 rounded shadow-lg"
-          />
-        )}
-        <div className="flex flex-col min-w-0">
-          <a 
-            href="#" 
-            className="text-sm text-white hover:underline truncate font-normal"
-          >
-            {trackName}
-          </a>
-          <span className="text-[11px] text-[#b3b3b3] hover:text-white hover:underline truncate cursor-pointer">
-            {artistNames}
-          </span>
-        </div>
-        <button 
-          onClick={handleToggleLike}
-          className={`ml-2 transition-colors cursor-pointer ${isLiked ? 'text-spotify-green' : 'text-[#b3b3b3] hover:text-white'}`}
-          title={isLiked ? 'Remove from Liked Songs' : 'Save to Liked Songs'}
-        >
-          <FiHeart size={16} fill={isLiked ? '#1DB954' : 'none'} />
-        </button>
-        {(() => {
-          const status = currentTrack ? syncStatus.get(currentTrack.id) : null;
-          return (
-            <button
-              onClick={handleToggleOffline}
-              className={`ml-3 transition-colors ${
-                isCached
-                  ? 'text-spotify-green hover:text-green-400'
-                  : 'text-[#b3b3b3] hover:text-white'
-              }`}
-              disabled={status?.status === 'downloading'}
-              title={isCached ? 'Already downloaded (Click to remove)' : 'Download for offline'}
-            >
-              {status?.status === 'downloading' ? (
-                <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-spotify-green"></div>
-              ) : isCached ? (
-                <FiCheck size={16} />
-              ) : (
-                <FiDownload size={16} />
+          {/* DESKTOP PLAYER (Hidden on Mobile) */}
+          <div className="hidden md:grid grid-cols-3 items-center w-full h-full px-4">
+            {/* Left: Now Playing */}
+            <div className="flex items-center gap-4 min-w-[180px]">
+              {albumImageUrl && (
+                <img
+                  src={albumImageUrl}
+                  alt={albumName}
+                  className="w-14 h-14 rounded shadow-lg object-cover"
+                />
               )}
-            </button>
-          );
-        })()}
-      </div>
-
-      {/* Center: Player Controls */}
-      <div className="flex flex-col items-center max-w-[722px] w-full mx-auto">
-        {/* Control Buttons */}
-        <div className="flex items-center gap-4 mb-2">
-          <button
-            onClick={toggleShuffle}
-            className={`p-1 transition-colors ${
-              shuffle ? 'text-spotify-green' : 'text-[#b3b3b3] hover:text-white'
-            }`}
-            title="Shuffle"
-          >
-            <FiShuffle size={16} />
-          </button>
-
-          <button
-            onClick={previous}
-            className="p-1 text-[#b3b3b3] hover:text-white transition-colors"
-            title="Previous"
-          >
-            <FiSkipBack size={20} fill="currentColor" />
-          </button>
-
-          <button
-            onClick={togglePlayPause}
-            className="bg-white rounded-full w-8 h-8 flex items-center justify-center hover:scale-105 transition-transform"
-            title={isPlaying ? 'Pause' : 'Play'}
-          >
-            {isPlaying ? (
-              <FiPause size={16} className="text-black" fill="black" />
-            ) : (
-              <FiPlay size={16} className="text-black ml-0.5" fill="black" />
-            )}
-          </button>
-
-          <button
-            onClick={next}
-            className="p-1 text-[#b3b3b3] hover:text-white transition-colors"
-            title="Next"
-          >
-            <FiSkipForward size={20} fill="currentColor" />
-          </button>
-
-          <button
-            onClick={toggleRepeat}
-            className={`p-1 relative transition-colors ${
-              repeat !== 'off' ? 'text-spotify-green' : 'text-[#b3b3b3] hover:text-white'
-            }`}
-            title={`Repeat: ${repeat}`}
-          >
-            <FiRepeat size={16} />
-            {repeat === 'one' && (
-              <span className="absolute -top-1 -right-1 text-[10px] font-bold bg-spotify-green text-black rounded-full w-3 h-3 flex items-center justify-center">
-                1
-              </span>
-            )}
-          </button>
-        </div>
-
-        {/* Progress Bar */}
-        <div className="flex items-center gap-2 w-full">
-          <span className="text-[11px] text-[#a7a7a7] w-10 text-right font-mono select-none">
-            {formatDuration(localProgress * 1000)}
-          </span>
-          <div 
-            ref={progressRef}
-            className="flex-1 h-2 bg-[#4d4d4d] rounded-full cursor-pointer group relative py-0.5"
-            onClick={handleProgressClick}
-            onMouseDown={handleProgressMouseDown}
-          >
-            <div 
-              className="h-full bg-white group-hover:bg-spotify-green rounded-full relative transition-colors"
-              style={{ width: `${progress}%` }}
-            >
-              <div 
-                className={`absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow-md ${
-                  isDraggingProgress ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                } transition-opacity`}
-              />
-            </div>
-          </div>
-          <span className="text-[11px] text-[#a7a7a7] w-10 font-mono select-none">
-            {formatDuration(duration * 1000)}
-          </span>
-        </div>
-      </div>
-
-      {/* Right: Volume & Other Controls */}
-      <div className="flex items-center justify-end gap-3 min-w-[180px]">
-        {/* Touch & Mobile Volume Control Popover */}
-        <div className="relative flex items-center gap-2">
-          <button 
-            onClick={() => {
-              if (window.innerWidth <= 768) {
-                setShowMobileVolume(!showMobileVolume);
-              } else {
-                toggleMute();
-              }
-            }}
-            className="text-[#b3b3b3] hover:text-white transition-colors p-2 rounded-lg hover:bg-white/10 active:scale-95"
-            title="Volume"
-          >
-            <VolumeIcon size={18} />
-          </button>
-
-          {/* Desktop Volume Slider */}
-          <div 
-            ref={volumeRef}
-            className="hidden sm:block w-24 h-2 bg-[#4d4d4d] rounded-full cursor-pointer group relative py-0.5"
-            onClick={handleVolumeClick}
-            onMouseDown={handleVolumeMouseDown}
-          >
-            <div 
-              className="h-full bg-white group-hover:bg-spotify-green rounded-full relative transition-colors"
-              style={{ width: `${volumePercent}%` }}
-            >
-              <div 
-                className={`absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow-md ${
-                  isDraggingVolume ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                } transition-opacity`}
-              />
-            </div>
-          </div>
-
-          {/* Mobile Volume Control Popup Modal */}
-          {showMobileVolume && (
-            <div className="sm:hidden absolute bottom-12 right-0 bg-[#121826]/95 backdrop-blur-2xl border border-white/15 p-4 rounded-2xl shadow-2xl flex flex-col items-center gap-3 z-50 w-48">
-              <div className="flex items-center justify-between w-full text-xs font-semibold text-white/80">
-                <span>Volume</span>
-                <span>{Math.round(volumePercent)}%</span>
-              </div>
-              <div 
-                ref={mobileVolumeRef}
-                className="w-full h-4 bg-white/20 rounded-full cursor-pointer relative py-1"
-                onClick={handleVolumeClick}
-                onMouseDown={handleVolumeMouseDown}
-              >
-                <div 
-                  className="h-full bg-spotify-green rounded-full relative"
-                  style={{ width: `${volumePercent}%` }}
+              <div className="flex flex-col min-w-0">
+                <a 
+                  href="#" 
+                  className="text-sm text-white hover:underline truncate font-normal"
                 >
-                  <div className="absolute right-0 top-1/2 -translate-y-1/2 w-5 h-5 bg-white rounded-full shadow-lg" />
+                  {trackName}
+                </a>
+                <span className="text-[11px] text-[#b3b3b3] hover:text-white hover:underline truncate cursor-pointer">
+                  {artistNames}
+                </span>
+              </div>
+              <button 
+                onClick={handleToggleLike}
+                className={`ml-2 transition-colors cursor-pointer ${isLiked ? 'text-spotify-green' : 'text-[#b3b3b3] hover:text-white'}`}
+                title={isLiked ? 'Remove from Liked Songs' : 'Save to Liked Songs'}
+              >
+                <FiHeart size={16} fill={isLiked ? '#1DB954' : 'none'} />
+              </button>
+              {(() => {
+                const status = currentTrack ? syncStatus.get(currentTrack.id) : null;
+                return (
+                  <button
+                    onClick={handleToggleOffline}
+                    className={`ml-3 transition-colors ${
+                      isCached
+                        ? 'text-spotify-green hover:text-green-400'
+                        : 'text-[#b3b3b3] hover:text-white'
+                    }`}
+                    disabled={status?.status === 'downloading'}
+                    title={isCached ? 'Already downloaded (Click to remove)' : 'Download for offline'}
+                  >
+                    {status?.status === 'downloading' ? (
+                      <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-spotify-green"></div>
+                    ) : isCached ? (
+                      <FiCheck size={16} />
+                    ) : (
+                      <FiDownload size={16} />
+                    )}
+                  </button>
+                );
+              })()}
+            </div>
+
+            {/* Center: Player Controls */}
+            <div className="flex flex-col items-center max-w-[722px] w-full mx-auto">
+              <div className="flex items-center gap-4 mb-2">
+                <button
+                  onClick={toggleShuffle}
+                  className={`p-1 transition-colors ${
+                    shuffle ? 'text-spotify-green' : 'text-[#b3b3b3] hover:text-white'
+                  }`}
+                  title="Shuffle"
+                >
+                  <FiShuffle size={16} />
+                </button>
+
+                <button
+                  onClick={previous}
+                  className="p-1 text-[#b3b3b3] hover:text-white transition-colors"
+                  title="Previous"
+                >
+                  <FiSkipBack size={20} fill="currentColor" />
+                </button>
+
+                <button
+                  onClick={togglePlayPause}
+                  className="bg-white rounded-full w-8 h-8 flex items-center justify-center hover:scale-105 transition-transform"
+                  title={isPlaying ? 'Pause' : 'Play'}
+                >
+                  {isPlaying ? (
+                    <FiPause size={16} className="text-black" fill="black" />
+                  ) : (
+                    <FiPlay size={16} className="text-black ml-0.5" fill="black" />
+                  )}
+                </button>
+
+                <button
+                  onClick={next}
+                  className="p-1 text-[#b3b3b3] hover:text-white transition-colors"
+                  title="Next"
+                >
+                  <FiSkipForward size={20} fill="currentColor" />
+                </button>
+
+                <button
+                  onClick={toggleRepeat}
+                  className={`p-1 relative transition-colors ${
+                    repeat !== 'off' ? 'text-spotify-green' : 'text-[#b3b3b3] hover:text-white'
+                  }`}
+                  title={`Repeat: ${repeat}`}
+                >
+                  <FiRepeat size={16} />
+                  {repeat === 'one' && (
+                    <span className="absolute -top-1 -right-1 text-[10px] font-bold bg-spotify-green text-black rounded-full w-3 h-3 flex items-center justify-center">
+                      1
+                    </span>
+                  )}
+                </button>
+              </div>
+
+              {/* Desktop Progress Bar */}
+              <div className="flex items-center gap-2 w-full">
+                <span className="text-[11px] text-[#a7a7a7] w-10 text-right font-mono select-none">
+                  {formatDuration(localProgress * 1000)}
+                </span>
+                <div 
+                  ref={progressRef}
+                  className="flex-1 h-2 bg-[#4d4d4d] rounded-full cursor-pointer group relative py-0.5"
+                  onClick={handleProgressClick}
+                  onMouseDown={handleProgressMouseDown}
+                >
+                  <div 
+                    className="h-full bg-white group-hover:bg-spotify-green rounded-full relative transition-colors"
+                    style={{ width: `${progress}%` }}
+                  >
+                    <div 
+                      className={`absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow-md ${
+                        isDraggingProgress ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                      } transition-opacity`}
+                    />
+                  </div>
+                </div>
+                <span className="text-[11px] text-[#a7a7a7] w-10 font-mono select-none">
+                  {formatDuration(duration * 1000)}
+                </span>
+              </div>
+            </div>
+
+            {/* Right: Desktop Volume & Controls */}
+            <div className="flex items-center justify-end gap-3 min-w-[180px]">
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={toggleMute}
+                  className="text-[#b3b3b3] hover:text-white transition-colors p-1"
+                >
+                  <VolumeIcon size={16} />
+                </button>
+                <div 
+                  ref={volumeRef}
+                  className="w-24 h-2 bg-[#4d4d4d] rounded-full cursor-pointer group relative py-0.5"
+                  onClick={handleVolumeClick}
+                  onMouseDown={handleVolumeMouseDown}
+                >
+                  <div 
+                    className="h-full bg-white group-hover:bg-spotify-green rounded-full relative transition-colors"
+                    style={{ width: `${volumePercent}%` }}
+                  >
+                    <div 
+                      className={`absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow-md ${
+                        isDraggingVolume ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                      } transition-opacity`}
+                    />
+                  </div>
                 </div>
               </div>
-              <button
-                onClick={() => setShowMobileVolume(false)}
-                className="text-xs text-white/60 hover:text-white mt-1 underline"
+
+              <button 
+                onClick={toggleFullscreen}
+                className="text-[#b3b3b3] hover:text-white transition-colors p-1"
+                title="Fullscreen"
               >
-                Done
+                <FiMaximize2 size={14} />
               </button>
             </div>
-          )}
-        </div>
+          </div>
 
-        <button 
-          onClick={toggleFullscreen}
-          className="text-[#b3b3b3] hover:text-white transition-colors p-2 rounded-lg hover:bg-white/10"
-          title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
-        >
-          {isFullscreen ? <FiMinimize2 size={18} /> : <FiMaximize2 size={18} />}
-        </button>
-      </div>
-      </>
+          {/* MOBILE SPOTIFY FLOATING MINI-PLAYER CARD (Visible only on Mobile) */}
+          <div className="md:hidden fixed bottom-[68px] left-2 right-2 z-40 bg-[#242936]/95 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-[0_12px_36px_rgba(0,0,0,0.7)] overflow-hidden transition-all duration-300">
+            {/* Top Attached Thin Progress Line */}
+            <div className="w-full h-1 bg-white/10 relative">
+              <div 
+                className="h-full bg-spotify-green transition-all duration-200"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+
+            <div 
+              onClick={toggleFullscreen}
+              className="px-3 py-2 flex items-center justify-between gap-3 cursor-pointer active:scale-[0.99] transition-transform"
+            >
+              {/* Left: Album Cover + Song Title & Artist */}
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                {albumImageUrl ? (
+                  <img
+                    src={albumImageUrl}
+                    alt={albumName}
+                    className="w-11 h-11 rounded-xl object-cover shadow-md flex-shrink-0 border border-white/10"
+                  />
+                ) : (
+                  <div className="w-11 h-11 rounded-xl bg-spotify-green/20 flex items-center justify-center flex-shrink-0">
+                    <FiMusic className="text-spotify-green text-lg" />
+                  </div>
+                )}
+
+                <div className="flex flex-col min-w-0 flex-1">
+                  <h4 className="text-sm font-semibold text-white truncate leading-tight">
+                    {trackName}
+                  </h4>
+                  <p className="text-[12px] text-white/60 truncate mt-0.5">
+                    {artistNames}
+                  </p>
+                </div>
+              </div>
+
+              {/* Right: Quick Action Controls */}
+              <div className="flex items-center gap-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                <button
+                  onClick={handleToggleLike}
+                  className={`p-2 transition-colors ${isLiked ? 'text-spotify-green' : 'text-white/60 hover:text-white'}`}
+                  title={isLiked ? 'Remove from Liked Songs' : 'Save to Liked Songs'}
+                >
+                  <FiHeart size={18} fill={isLiked ? '#1DB954' : 'none'} />
+                </button>
+
+                <button
+                  onClick={togglePlayPause}
+                  className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-lg active:scale-95 transition-transform"
+                  title={isPlaying ? 'Pause' : 'Play'}
+                >
+                  {isPlaying ? (
+                    <FiPause size={18} className="text-black" fill="black" />
+                  ) : (
+                    <FiPlay size={18} className="text-black ml-0.5" fill="black" />
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
       )}
     </footer>
   );
