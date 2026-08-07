@@ -19,109 +19,57 @@ router.get('/saavn-search', async (req: Request, res: Response) => {
     const trackId = (req.query.trackId as string) || rawQuery;
     let youtubeId = trackId.startsWith('yt-') ? trackId.replace('yt-', '') : trackId;
 
-    console.log(`[AUDIO DOWNLOAD] Resolving binary stream for ID: ${youtubeId}, Query: ${rawQuery}`);
+    console.log(`[YOUTUBE AUDIO DOWNLOAD] Extracting audio via yt-dlp for ID: ${youtubeId}, Query: ${rawQuery}`);
 
-    const axios = (await import('axios')).default;
+    const { exec } = await import('child_process');
+    const util = await import('util');
+    const execPromise = util.promisify(exec);
+
     let directUrl: string | null = null;
 
-    // 1. Try JioSaavn 320kbps CDN search (Instant 320kbps MP3)
-    const cleanTitle = rawQuery
-      .split(',')[0]
-      .split('&')[0]
-      .replace(/[\(\)\[\]"'\-_]/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-
-    const saavnEndpoints = [
-      `https://saavn.me/api/search/songs?query=${encodeURIComponent(cleanTitle)}`,
-      `https://jiosaavn-api-private-us.vercel.app/search/songs?query=${encodeURIComponent(cleanTitle)}`,
-    ];
-
-    for (const endpoint of saavnEndpoints) {
+    // 1. Extract audio stream URL via yt-dlp by YouTube ID
+    if (youtubeId && youtubeId.length === 11) {
       try {
-        const saavnRes = await axios.get(endpoint, { timeout: 3500 });
-        const songs = saavnRes.data?.data?.results || saavnRes.data?.results;
-        if (songs && songs.length > 0 && songs[0].downloadUrl) {
-          const downloadUrls = songs[0].downloadUrl;
-          const highestQual = downloadUrls[downloadUrls.length - 1]?.url || downloadUrls[0]?.url;
-          if (highestQual) {
-            directUrl = highestQual;
-            console.log(`[AUDIO DOWNLOAD] Resolved JioSaavn 320kbps CDN stream!`);
-            break;
-          }
+        const { stdout } = await execPromise(`yt-dlp -f bestaudio -g "https://www.youtube.com/watch?v=${youtubeId}"`, { timeout: 15000 });
+        if (stdout && stdout.trim().startsWith('http')) {
+          directUrl = stdout.trim().split('\n')[0];
+          console.log('[YOUTUBE AUDIO] yt-dlp resolved by YouTube ID!');
         }
       } catch (e) {
-        // Try next Saavn mirror
+        console.warn('[YOUTUBE AUDIO] yt-dlp by ID error:', e);
       }
     }
 
-    // 2. If Saavn misses, fallback to AudioResolverService (Cobalt / Invidious / ytdl)
-    if (!directUrl) {
-      if (!youtubeId || youtubeId.length !== 11) {
-        const searchRes = await audioResolverService.resolveAudioSources({
-          trackName: rawQuery,
-          artistName: '',
-        });
-        if (searchRes && searchRes.length > 0 && searchRes[0].youtubeId) {
-          youtubeId = searchRes[0].youtubeId;
+    // 2. Fallback: Extract audio stream URL via yt-dlp search query
+    if (!directUrl && rawQuery) {
+      const cleanSearch = rawQuery.replace(/[\(\)\[\]"'\-_]/g, ' ').replace(/\s+/g, ' ').trim();
+      try {
+        console.log(`[YOUTUBE AUDIO] Searching YouTube via yt-dlp: ${cleanSearch}`);
+        const { stdout } = await execPromise(`yt-dlp -f bestaudio -g "ytsearch1:${cleanSearch}"`, { timeout: 15000 });
+        if (stdout && stdout.trim().startsWith('http')) {
+          directUrl = stdout.trim().split('\n')[0];
+          console.log('[YOUTUBE AUDIO] yt-dlp resolved by search query!');
         }
-      }
-
-      if (youtubeId && youtubeId.length === 11) {
-        const streamData = await audioResolverService.getDirectAudioUrl(youtubeId);
-        if (streamData?.url) {
-          directUrl = streamData.url;
-        }
-      }
-    }
-
-    // 3. Fallback: Execute yt-dlp directly on EC2 server (100% working for YouTube ID or Search)
-    if (!directUrl) {
-      const { exec } = await import('child_process');
-      const util = await import('util');
-      const execPromise = util.promisify(exec);
-
-      if (youtubeId && youtubeId.length === 11) {
-        try {
-          console.log(`[AUDIO DOWNLOAD] Executing yt-dlp for YouTube ID: ${youtubeId}`);
-          const { stdout } = await execPromise(`yt-dlp -f bestaudio -g "https://www.youtube.com/watch?v=${youtubeId}"`, { timeout: 10000 });
-          if (stdout && stdout.trim().startsWith('http')) {
-            directUrl = stdout.trim().split('\n')[0];
-            console.log('[AUDIO DOWNLOAD] Resolved direct audio stream via yt-dlp!');
-          }
-        } catch (e) {
-          console.warn('[AUDIO DOWNLOAD] yt-dlp by ID error:', e);
-        }
-      }
-
-      if (!directUrl && cleanTitle) {
-        try {
-          console.log(`[AUDIO DOWNLOAD] Executing yt-dlp search for: ${cleanTitle}`);
-          const { stdout } = await execPromise(`yt-dlp -f bestaudio -g "ytsearch1:${cleanTitle}"`, { timeout: 12000 });
-          if (stdout && stdout.trim().startsWith('http')) {
-            directUrl = stdout.trim().split('\n')[0];
-            console.log('[AUDIO DOWNLOAD] Resolved direct audio stream via yt-dlp search!');
-          }
-        } catch (e) {
-          console.warn('[AUDIO DOWNLOAD] yt-dlp search error:', e);
-        }
+      } catch (e) {
+        console.warn('[YOUTUBE AUDIO] yt-dlp search error:', e);
       }
     }
 
     if (!directUrl) {
-      return res.status(404).json({ error: 'Stream URL resolution failed' });
+      return res.status(404).json({ error: 'Failed to extract YouTube audio stream' });
     }
 
     // Stream binary audio directly from server to client to prevent CORS / hotlink blocks
-    console.log(`[AUDIO DOWNLOAD] Streaming audio binary from URL: ${directUrl.substring(0, 80)}...`);
+    console.log(`[YOUTUBE AUDIO] Streaming binary audio to client...`);
 
+    const axios = (await import('axios')).default;
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Headers', '*');
 
     try {
       const audioStreamRes = await axios.get(directUrl, {
         responseType: 'stream',
-        timeout: 15000,
+        timeout: 20000,
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
           'Accept': '*/*',
@@ -129,21 +77,20 @@ router.get('/saavn-search', async (req: Request, res: Response) => {
       });
 
       if (audioStreamRes.status >= 200 && audioStreamRes.status < 300) {
-        res.setHeader('Content-Type', audioStreamRes.headers['content-type'] || 'audio/mpeg');
+        res.setHeader('Content-Type', audioStreamRes.headers['content-type'] || 'audio/webm');
         if (audioStreamRes.headers['content-length']) {
           res.setHeader('Content-Length', audioStreamRes.headers['content-length']);
         }
         return audioStreamRes.data.pipe(res);
       }
     } catch (streamErr) {
-      console.warn('[AUDIO DOWNLOAD] Stream proxy failed, falling back to direct redirect:', streamErr);
+      console.warn('[YOUTUBE AUDIO] Stream proxy failed, redirecting to direct CDN URL:', streamErr);
     }
 
-    // Fallback: Redirect directly
     return res.redirect(directUrl);
   } catch (error) {
-    console.error('Audio download error:', error);
-    return res.status(500).json({ error: 'Audio download failed' });
+    console.error('YouTube audio download error:', error);
+    return res.status(500).json({ error: 'YouTube audio download failed' });
   }
 });
 
