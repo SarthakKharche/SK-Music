@@ -131,7 +131,7 @@ const Layout: React.FC = () => {
         </NavLink>
 
         <NavLink
-          to="/playlist/custom_liked_songs"
+          to="/library"
           className={({ isActive }) =>
             `flex flex-col items-center gap-1 px-3 py-1 transition-colors ${
               isActive ? 'text-spotify-green font-semibold' : 'text-white/40 hover:text-white/70'

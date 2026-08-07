@@ -19,6 +19,7 @@ import MadeForYouPage from './pages/MadeForYouPage';
 import MadeForYouPlaylistPage from './pages/MadeForYouPlaylistPage';
 import YoutubeMusicHome from './pages/YoutubeMusicHome';
 import YoutubePlaylistPage from './pages/YoutubePlaylistPage';
+import LibraryPage from './pages/LibraryPage';
 
 function App() {
   return (
@@ -46,6 +47,7 @@ function App() {
                 <Route path="playlist/:playlistId" element={<PlaylistPage />} />
                 <Route path="spotify-playlist/:playlistId" element={<SpotifyPlaylistPage />} />
                 <Route path="search" element={<SearchPage />} />
+                <Route path="library" element={<LibraryPage />} />
                 <Route path="offline" element={<OfflinePage />} />
                 <Route path="settings" element={<SettingsPage />} />
                 <Route path="made-for-you" element={<MadeForYouPage />} />
