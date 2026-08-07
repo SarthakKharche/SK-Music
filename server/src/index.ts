@@ -20,10 +20,6 @@ import { rateLimiter } from './middleware/rateLimiter';
 
 const app = express();
 const PREFERRED_PORT = Number(process.env.PORT) || 5000;
-const clientOrigins = (process.env.CLIENT_URLS || process.env.CLIENT_URL || 'http://localhost:5173,https://localhost:5173')
-  .split(',')
-  .map((origin) => origin.trim())
-  .filter(Boolean);
 
 // Initialize Firebase
 initializeFirebase();
