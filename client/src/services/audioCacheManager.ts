@@ -148,14 +148,51 @@ class AudioCacheManager {
 
     console.log('[OFFLINE] Fetching audio binary for:', cleanTitle);
 
+    let targetTrackId = track.id;
+
+    // Resolve or retrieve YouTube ID for track
+    let storedYoutubeId = localStorage.getItem(`youtube_${track.id}`);
+    if (!storedYoutubeId && track.id.startsWith('yt-')) {
+      storedYoutubeId = track.id.replace('yt-', '');
+    }
+
+    if (!storedYoutubeId && navigator.onLine) {
+      this.notifySyncStatus({
+        trackId: track.id,
+        status: 'downloading',
+        progress: 25,
+      });
+      const resolved = await this.resolveAudioSource(track);
+      if (resolved?.youtubeId) {
+        storedYoutubeId = resolved.youtubeId;
+        localStorage.setItem(`youtube_${track.id}`, storedYoutubeId);
+      }
+    }
+
+    if (storedYoutubeId) {
+      targetTrackId = `yt-${storedYoutubeId}`;
+    }
+
+    this.notifySyncStatus({
+      trackId: track.id,
+      status: 'downloading',
+      progress: 40,
+    });
+
     try {
-      const audioResponse = await fetch(`/api/audio/saavn-search?query=${query}&trackId=${track.id}`);
+      const audioResponse = await fetch(`/api/audio/saavn-search?query=${query}&trackId=${targetTrackId}`);
       if (!audioResponse.ok) {
         throw new Error(`Audio download failed: ${audioResponse.status}`);
       }
 
+      this.notifySyncStatus({
+        trackId: track.id,
+        status: 'downloading',
+        progress: 75,
+      });
+
       const blob = await audioResponse.blob();
-      if (blob.size < 50000) {
+      if (blob.size < 30000) {
         throw new Error('Downloaded audio binary is incomplete');
       }
 

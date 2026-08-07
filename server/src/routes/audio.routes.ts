@@ -18,92 +18,61 @@ router.get('/saavn-search', async (req: Request, res: Response) => {
   try {
     const rawQuery = (req.query.query as string) || '';
     const trackId = (req.query.trackId as string) || rawQuery;
-    let youtubeId = trackId.startsWith('yt-') ? trackId.replace('yt-', '') : trackId;
+    let youtubeId = trackId.startsWith('yt-') ? trackId.replace('yt-', '') : '';
 
-    console.log(`[YOUTUBE AUDIO DOWNLOAD] Extracting audio via yt-dlp for ID: ${youtubeId}, Query: ${rawQuery}`);
+    console.log(`[AUDIO DOWNLOAD] Request - trackId: ${trackId}, youtubeId: ${youtubeId}, query: ${rawQuery}`);
 
-    const { exec } = await import('child_process');
-    const util = await import('util');
-    const execPromise = util.promisify(exec);
+    // If youtubeId is not 11 chars, resolve via audioResolverService
+    if (!youtubeId || youtubeId.length !== 11) {
+      const searchRes = await audioResolverService.resolveAudioSources({
+        trackName: rawQuery,
+        artistName: '',
+      });
+      if (searchRes && searchRes[0]?.youtubeId) {
+        youtubeId = searchRes[0].youtubeId;
+      }
+    }
 
-    let directUrl: string | null = null;
+    if (!youtubeId || youtubeId.length !== 11) {
+      return res.status(404).json({ error: 'Could not find YouTube track for download' });
+    }
 
-    // 1. Extract audio stream URL via yt-dlp with android player client on EC2
-    if (youtubeId && youtubeId.length === 11) {
+    // Use fast Cobalt / Invidious / ytdl-core direct audio URL extraction
+    const directAudio = await audioResolverService.getDirectAudioUrl(youtubeId);
+    let directUrl: string | null = directAudio?.url || null;
+
+    // Fallback: yt-dlp on EC2 if directUrl is missing
+    if (!directUrl) {
       try {
+        const { exec } = await import('child_process');
+        const util = await import('util');
+        const execPromise = util.promisify(exec);
         const { stdout } = await execPromise(
           `yt-dlp -f bestaudio --no-check-certificates --extractor-args "youtube:player_client=android,web" -g "https://www.youtube.com/watch?v=${youtubeId}"`,
           { timeout: 15000 }
         );
         if (stdout && stdout.trim().startsWith('http')) {
           directUrl = stdout.trim().split('\n')[0];
-          console.log('[YOUTUBE AUDIO] yt-dlp android client resolved by YouTube ID!');
         }
       } catch (e) {
-        console.warn('[YOUTUBE AUDIO] yt-dlp by ID error:', e);
-      }
-    }
-
-    // 2. Fallback: Query Piped API instances directly on EC2
-    if (!directUrl && youtubeId && youtubeId.length === 11) {
-      const pipedInstances = [
-        'https://pipedapi.adminforge.de',
-        'https://pipedapi.kavin.rocks',
-        'https://pipedapi.tokhmi.xyz',
-        'https://api.piped.private.coffee',
-      ];
-
-      for (const instance of pipedInstances) {
-        try {
-          console.log(`[YOUTUBE AUDIO] Trying Piped API fallback: ${instance}`);
-          const pipedRes = await axios.get(`${instance}/streams/${youtubeId}`, { timeout: 6000 });
-          const audioStreams = pipedRes.data?.audioStreams;
-          if (audioStreams && audioStreams.length > 0) {
-            audioStreams.sort((a: any, b: any) => (b.bitrate || 0) - (a.bitrate || 0));
-            if (audioStreams[0]?.url) {
-              directUrl = audioStreams[0].url;
-              console.log(`[YOUTUBE AUDIO] Resolved Piped stream URL from: ${instance}`);
-              break;
-            }
-          }
-        } catch (pipedErr) {
-          // Try next Piped mirror
-        }
-      }
-    }
-
-    // 3. Fallback: Search YouTube via yt-dlp with clean query
-    if (!directUrl && rawQuery) {
-      const cleanSearch = rawQuery.replace(/[\(\)\[\]"'\-_]/g, ' ').replace(/\s+/g, ' ').trim();
-      try {
-        console.log(`[YOUTUBE AUDIO] Searching YouTube via yt-dlp: ${cleanSearch}`);
-        const { stdout } = await execPromise(
-          `yt-dlp -f bestaudio --no-check-certificates --extractor-args "youtube:player_client=android,web" -g "ytsearch1:${cleanSearch}"`,
-          { timeout: 15000 }
-        );
-        if (stdout && stdout.trim().startsWith('http')) {
-          directUrl = stdout.trim().split('\n')[0];
-          console.log('[YOUTUBE AUDIO] yt-dlp resolved by search query!');
-        }
-      } catch (e) {
-        console.warn('[YOUTUBE AUDIO] yt-dlp search error:', e);
+        console.warn('[AUDIO DOWNLOAD] yt-dlp fallback error:', e);
       }
     }
 
     if (!directUrl) {
-      return res.status(404).json({ error: 'Failed to extract YouTube audio stream' });
+      return res.status(404).json({ error: 'Failed to extract direct audio stream' });
     }
 
-    // Stream binary audio directly from server to client to prevent CORS / hotlink blocks
-    console.log(`[YOUTUBE AUDIO] Streaming binary audio to client...`);
+    console.log(`[AUDIO DOWNLOAD] Streaming binary audio for ${youtubeId}...`);
 
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Headers', '*');
+    res.setHeader('Content-Type', 'audio/mpeg');
 
     try {
       const audioStreamRes = await axios.get(directUrl, {
         responseType: 'stream',
-        timeout: 20000,
+        timeout: 25000,
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
           'Accept': '*/*',
@@ -111,14 +80,13 @@ router.get('/saavn-search', async (req: Request, res: Response) => {
       });
 
       if (audioStreamRes.status >= 200 && audioStreamRes.status < 300) {
-        res.setHeader('Content-Type', audioStreamRes.headers['content-type'] || 'audio/webm');
         if (audioStreamRes.headers['content-length']) {
           res.setHeader('Content-Length', audioStreamRes.headers['content-length']);
         }
         return audioStreamRes.data.pipe(res);
       }
     } catch (streamErr) {
-      console.warn('[YOUTUBE AUDIO] Stream proxy failed, redirecting to direct CDN URL:', streamErr);
+      console.warn('[AUDIO DOWNLOAD] Stream proxy failed, redirecting to direct CDN URL:', streamErr);
     }
 
     return res.redirect(directUrl);
