@@ -141,18 +141,18 @@ const OfflinePage: React.FC = () => {
   }
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8 pb-32 md:pb-24 max-w-7xl mx-auto">
       {/* Header */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between gap-6 mb-6">
-          <div className="flex items-center gap-6">
-            <div className="bg-gradient-to-br from-green-600 to-emerald-500 p-8 rounded-lg shadow-2xl">
-              <FiDownload className="text-white text-5xl" />
+      <div className="mb-6 md:mb-8">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 md:gap-6 mb-6">
+          <div className="flex items-center gap-4 md:gap-6">
+            <div className="bg-gradient-to-br from-green-600 to-emerald-500 p-4 md:p-8 rounded-lg shadow-2xl shrink-0">
+              <FiDownload className="text-white text-3xl md:text-5xl" />
             </div>
             <div>
-              <p className="text-xs uppercase tracking-widest text-spotify-lightgray mb-1">Downloads</p>
-              <h1 className="text-5xl font-bold text-white mb-2">Offline Music</h1>
-              <p className="text-spotify-lightgray flex items-center gap-4">
+              <p className="text-[10px] md:text-xs uppercase tracking-widest text-spotify-lightgray mb-1">Downloads</p>
+              <h1 className="text-2xl md:text-5xl font-bold text-white mb-1 md:mb-2">Offline Music</h1>
+              <p className="text-xs md:text-sm text-spotify-lightgray flex items-center gap-3">
                 <span>{offlineTracks.length} {offlineTracks.length === 1 ? 'song' : 'songs'}</span>
                 {cacheSize > 0 && (
                   <span className="flex items-center gap-1">
@@ -167,7 +167,7 @@ const OfflinePage: React.FC = () => {
             <button
               onClick={handleSyncAll}
               disabled={syncingAll}
-              className="px-5 py-2.5 bg-spotify-green hover:bg-green-400 text-black font-semibold rounded-full shadow-lg transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
+              className="w-full md:w-auto px-5 py-2.5 bg-spotify-green hover:bg-green-400 text-black font-semibold rounded-full shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 text-sm"
             >
               {syncingAll ? (
                 <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-black" />
@@ -181,14 +181,14 @@ const OfflinePage: React.FC = () => {
 
         {/* Search Bar */}
         {offlineTracks.length > 0 && (
-          <div className="relative max-w-md">
+          <div className="relative max-w-md w-full">
             <FiSearch className="absolute left-4 top-1/2 transform -translate-y-1/2 text-spotify-lightgray" />
             <input
               type="text"
               placeholder="Search in downloaded songs..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-spotify-gray border border-spotify-lightgray/20 rounded-full py-3 pl-12 pr-4 text-white placeholder-spotify-lightgray focus:outline-none focus:border-white transition-colors"
+              className="w-full bg-spotify-gray border border-spotify-lightgray/20 rounded-full py-2.5 md:py-3 pl-12 pr-4 text-sm text-white placeholder-spotify-lightgray focus:outline-none focus:border-white transition-colors"
             />
           </div>
         )}
@@ -196,12 +196,12 @@ const OfflinePage: React.FC = () => {
 
       {/* Track List */}
       {offlineTracks.length === 0 ? (
-        <div className="text-center py-16">
-          <FiDownload className="text-spotify-lightgray text-6xl mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-white mb-2">
+        <div className="text-center py-12 md:py-16">
+          <FiDownload className="text-spotify-lightgray text-5xl md:text-6xl mx-auto mb-4" />
+          <h2 className="text-xl md:text-2xl font-bold text-white mb-2">
             {searchQuery ? 'No matching songs' : 'No downloaded songs'}
           </h2>
-          <p className="text-spotify-lightgray max-w-md mx-auto">
+          <p className="text-sm text-spotify-lightgray max-w-md mx-auto">
             {searchQuery 
               ? 'Try a different search term'
               : 'Download songs while online to listen offline. Look for the download button on tracks and playlists.'}
@@ -209,8 +209,8 @@ const OfflinePage: React.FC = () => {
         </div>
       ) : (
         <div className="space-y-1">
-          {/* Table Header */}
-          <div className="grid grid-cols-[48px_1fr_1fr_80px_48px] gap-4 px-4 py-2 text-spotify-lightgray text-sm border-b border-spotify-lightgray/20">
+          {/* Table Header (Desktop only) */}
+          <div className="hidden md:grid grid-cols-[48px_1fr_1fr_80px_48px] gap-4 px-4 py-2 text-spotify-lightgray text-sm border-b border-spotify-lightgray/20">
             <div>#</div>
             <div>Title</div>
             <div>Album</div>
@@ -228,12 +228,12 @@ const OfflinePage: React.FC = () => {
               <div
                 key={`${track.id}-${index}`}
                 onClick={() => handlePlayTrack(track, index)}
-                className={`grid grid-cols-[48px_1fr_1fr_80px_48px] gap-4 px-4 py-2 rounded-md group cursor-pointer transition-colors ${
+                className={`grid grid-cols-[1fr_auto_auto] md:grid-cols-[48px_1fr_1fr_80px_48px] gap-3 md:gap-4 px-3 md:px-4 py-2.5 md:py-2 rounded-md group cursor-pointer transition-colors ${
                   isCurrentTrack ? 'bg-spotify-gray' : 'hover:bg-spotify-gray'
                 }`}
               >
-                {/* Index / Play Button */}
-                <div className="flex items-center justify-center">
+                {/* Index / Play Button (Desktop only) */}
+                <div className="hidden md:flex items-center justify-center">
                   {isCurrentTrack && isPlaying ? (
                     <img 
                       src="https://open.spotifycdn.com/cdn/images/equaliser-animated-green.f5eb96f2.gif" 
@@ -254,33 +254,33 @@ const OfflinePage: React.FC = () => {
 
                 {/* Track Info */}
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="relative">
+                  <div className="relative shrink-0">
                     <img
                       src={track.album?.imageUrl || '/placeholder-album.png'}
                       alt={track.album?.name || 'Album'}
-                      className="w-10 h-10 rounded shadow"
+                      className="w-11 h-11 md:w-10 md:h-10 rounded shadow object-cover"
                     />
                     <div className="absolute -bottom-1 -right-1 bg-spotify-green rounded-full p-0.5" title="Available offline">
                       <FiDownload size={10} className="text-black" />
                     </div>
                   </div>
                   <div className="min-w-0">
-                    <p className={`font-medium truncate ${isCurrentTrack ? 'text-spotify-green' : 'text-white'}`}>
+                    <p className={`font-medium text-sm md:text-base truncate ${isCurrentTrack ? 'text-spotify-green' : 'text-white'}`}>
                       {track.name || 'Unknown Track'}
                     </p>
-                    <p className="text-sm text-spotify-lightgray truncate">
+                    <p className="text-xs text-spotify-lightgray truncate">
                       {track.artists?.map((a) => a.name).join(', ') || 'Unknown Artist'}
                     </p>
                   </div>
                 </div>
 
-                {/* Album */}
-                <div className="flex items-center text-spotify-lightgray text-sm truncate">
+                {/* Album (Desktop only) */}
+                <div className="hidden md:flex items-center text-spotify-lightgray text-sm truncate">
                   {track.album?.name || 'Unknown Album'}
                 </div>
 
                 {/* Duration */}
-                <div className="flex items-center justify-end text-spotify-lightgray text-sm font-mono">
+                <div className="flex items-center justify-end text-spotify-lightgray text-xs md:text-sm font-mono">
                   {formatDuration(track.durationMs && track.durationMs > 0 ? track.durationMs : 180000)}
                 </div>
 
@@ -288,7 +288,7 @@ const OfflinePage: React.FC = () => {
                 <div className="flex items-center justify-center">
                   <button
                     onClick={(e) => handleDeleteTrack(track.id, e)}
-                    className="opacity-0 group-hover:opacity-100 text-spotify-lightgray hover:text-red-500 transition-all p-1"
+                    className="md:opacity-0 group-hover:opacity-100 text-spotify-lightgray hover:text-red-500 transition-all p-1"
                     title="Remove from downloads"
                   >
                     <FiTrash2 size={16} />

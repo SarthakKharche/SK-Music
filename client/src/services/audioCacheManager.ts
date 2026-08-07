@@ -136,12 +136,36 @@ class AudioCacheManager {
    * Download audio from JioSaavn CDN directly in browser
    */
   private async _downloadFromYouTube(track: Track): Promise<CachedAudio> {
-    const cleanTitle = track.name.replace(/[\(\)\[\]"'\-_]/g, ' ').replace(/\s+/g, ' ').trim();
-    const primaryArtist = track.artists?.[0]?.name?.split(',')[0]?.split('&')[0]?.trim() || '';
+    let resolvedTrack = { ...track };
+
+    // If track metadata is missing or "Unknown Track", fetch oEmbed metadata
+    if ((!resolvedTrack.name || resolvedTrack.name.toLowerCase().includes('unknown')) && navigator.onLine) {
+      let ytId = resolvedTrack.id;
+      if (ytId.startsWith('yt-')) ytId = ytId.replace('yt-', '');
+
+      if (ytId && ytId.length === 11) {
+        try {
+          const oembedRes = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${ytId}&format=json`);
+          if (oembedRes.ok) {
+            const oembed = await oembedRes.json();
+            if (oembed?.title) {
+              resolvedTrack.name = oembed.title;
+              resolvedTrack.artists = [{ id: 'artist-1', name: oembed.author_name || 'YouTube Music' }];
+              resolvedTrack.album = { id: 'album-1', name: 'YouTube Music', imageUrl: oembed.thumbnail_url || '' };
+            }
+          }
+        } catch (oeErr) {
+          console.warn('[OFFLINE] oEmbed metadata resolution skipped:', oeErr);
+        }
+      }
+    }
+
+    const cleanTitle = (resolvedTrack.name || 'Song').replace(/[\(\)\[\]"'\-_]/g, ' ').replace(/\s+/g, ' ').trim();
+    const primaryArtist = resolvedTrack.artists?.[0]?.name?.split(',')[0]?.split('&')[0]?.trim() || '';
     const query = encodeURIComponent(`${cleanTitle} ${primaryArtist}`);
 
     this.notifySyncStatus({
-      trackId: track.id,
+      trackId: resolvedTrack.id,
       status: 'downloading',
       progress: 10,
     });
