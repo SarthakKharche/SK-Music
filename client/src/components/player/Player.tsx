@@ -154,25 +154,6 @@ const Player: React.FC = () => {
     }
   };
 
-  const handleVolumeTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
-    setIsDraggingVolume(true);
-    if (e.touches && e.touches[0]) {
-      const newVol = calculateNewVolume(e.touches[0].clientX);
-      if (newVol !== undefined) {
-        setPlayerVolume(newVol);
-      }
-    }
-  };
-
-  const handleVolumeTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
-    if (e.touches && e.touches[0]) {
-      const newVol = calculateNewVolume(e.touches[0].clientX);
-      if (newVol !== undefined) {
-        setPlayerVolume(newVol);
-      }
-    }
-  };
-
   // Mouse & Touch drag handlers for progress and volume sliders
   useEffect(() => {
     const handleMove = (clientX: number) => {
