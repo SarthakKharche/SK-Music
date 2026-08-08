@@ -638,33 +638,110 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     if (nextIndex >= queue.length) {
       if (repeat === 'all') {
         nextIndex = 0;
-      } else if (autoplay && currentTrack && navigator.onLine) {
+      } else if (autoplay && currentTrack) {
         // Autoplay Mode: Fetch similar recommended songs automatically
         try {
           console.log('[AUTOPLAY] Reached end of queue. Fetching recommended tracks for:', currentTrack.name);
           const cleanName = encodeURIComponent(currentTrack.name || '');
           const cleanArtist = encodeURIComponent(currentTrack.artists?.[0]?.name || '');
-          const res = await api.get(`/radio/recommendations?trackId=${currentTrack.id}&trackName=${cleanName}&artistName=${cleanArtist}`);
           
-          const recommendedTracks: Track[] = res.data?.tracks || [];
-          if (recommendedTracks.length > 0) {
-            // Filter out tracks already in queue
-            const existingIds = new Set(queue.map(t => t.id));
-            const newTracks = recommendedTracks.filter(t => !existingIds.has(t.id));
+          let newTracks: Track[] = [];
 
-            if (newTracks.length > 0) {
-              const updatedQueue = [...queue, ...newTracks];
-              setState((prev) => ({
-                ...prev,
-                queue: updatedQueue,
-                queueIndex: nextIndex,
-              }));
-              await playTrack(newTracks[0]);
-              return;
+          // Try 1: Radio recommendations route
+          try {
+            const res = await api.get(`/radio/recommendations?trackId=${currentTrack.id}&trackName=${cleanName}&artistName=${cleanArtist}`);
+            const fetched = res.data?.tracks || [];
+            if (fetched.length > 0) {
+              const existingIds = new Set(queue.map((t: Track) => t.id));
+              newTracks = fetched.filter((t: Track) => !existingIds.has(t.id));
             }
+          } catch {}
+
+          // Try 2: JioSaavn Direct Artist Search fallback if Try 1 failed
+          if (newTracks.length === 0 && navigator.onLine) {
+            try {
+              const artistQuery = encodeURIComponent(`${currentTrack.artists?.[0]?.name || 'Hindi'} top hits`);
+              const searchRes = await api.get(`/audio/saavn-search?query=${artistQuery}&format=json`);
+              if (searchRes.data?.url) {
+                // Return artist fallback track
+                const fallbackTrack: Track = {
+                  id: `yt-fallback-${Date.now()}`,
+                  name: `${currentTrack.artists?.[0]?.name || 'Top'} Hit Radio`,
+                  artists: currentTrack.artists || [{ id: 'a1', name: 'Various Artists' }],
+                  album: currentTrack.album || { id: 'alb1', name: 'Autoplay Radio', imageUrl: '/placeholder-album.png' },
+                  durationMs: 180000,
+                  spotifyUrl: '',
+                  playlistId: '',
+                  userId: '',
+                  explicit: false,
+                  isOfflinePreferred: false,
+                  addedAt: new Date().toISOString(),
+                };
+                newTracks = [fallbackTrack];
+              }
+            } catch {}
+          }
+
+          // Try 3: Default Popular Songs Fallback
+          if (newTracks.length === 0) {
+            const defaultPopular: Track[] = [
+              {
+                id: 'yt-KALYANI_Remix',
+                name: 'KALYANI (Remix)',
+                artists: [{ id: 'a1', name: 'ARUN, KDS, HIFIY4 & Shreya Ghoshal' }],
+                album: { id: 'alb1', name: 'KALYANI Remix', imageUrl: 'https://i.ytimg.com/vi/a3Z7zZ_a3Z7/hqdefault.jpg' },
+                durationMs: 269000,
+                spotifyUrl: '',
+                playlistId: '',
+                userId: '',
+                explicit: false,
+                isOfflinePreferred: false,
+                addedAt: new Date().toISOString(),
+              },
+              {
+                id: 'yt-Bairan',
+                name: 'Bairan',
+                artists: [{ id: 'a2', name: 'Banjaare' }],
+                album: { id: 'alb2', name: 'Bairan', imageUrl: 'https://i.ytimg.com/vi/bairan/hqdefault.jpg' },
+                durationMs: 210000,
+                spotifyUrl: '',
+                playlistId: '',
+                userId: '',
+                explicit: false,
+                isOfflinePreferred: false,
+                addedAt: new Date().toISOString(),
+              },
+              {
+                id: 'yt-Night_Changes',
+                name: 'Night Changes',
+                artists: [{ id: 'a3', name: 'One Direction' }],
+                album: { id: 'alb3', name: 'FOUR (Deluxe)', imageUrl: 'https://i.ytimg.com/vi/nightchanges/hqdefault.jpg' },
+                durationMs: 220000,
+                spotifyUrl: '',
+                playlistId: '',
+                userId: '',
+                explicit: false,
+                isOfflinePreferred: false,
+                addedAt: new Date().toISOString(),
+              },
+            ];
+            const existingIds = new Set(queue.map((t: Track) => t.id));
+            newTracks = defaultPopular.filter((t: Track) => t.id !== currentTrack.id && !existingIds.has(t.id));
+          }
+
+          if (newTracks.length > 0) {
+            const updatedQueue = [...queue, ...newTracks];
+            const targetIndex = queue.length > 0 ? queue.length : 0;
+            setState((prev) => ({
+              ...prev,
+              queue: updatedQueue,
+              queueIndex: targetIndex,
+            }));
+            await playTrack(newTracks[0], updatedQueue);
+            return;
           }
         } catch (autoErr) {
-          console.warn('[AUTOPLAY] Recommendation fetch skipped:', autoErr);
+          console.warn('[AUTOPLAY] Recommendation process error:', autoErr);
         }
         return;
       } else {
