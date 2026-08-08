@@ -94,16 +94,40 @@ router.get('/saavn-search', async (req: Request, res: Response) => {
 
         if (streamUrl) {
           console.log(`[AUDIO DOWNLOAD] Found JioSaavn CDN stream URL: ${streamUrl.substring(0, 70)}...`);
+
+          // If JSON format requested, return direct seekable CDN URL for instant client playback (<10ms)
+          if (req.query.format === 'json' || req.headers.accept?.includes('application/json')) {
+            return res.json({ url: streamUrl });
+          }
+
+          // Handle HTTP Range Requests for seekability in HTML5 Audio Elements
+          const rangeHeader = req.headers.range;
+          const forwardHeaders: Record<string, string> = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Accept': '*/*',
+          };
+          if (rangeHeader) {
+            forwardHeaders['Range'] = rangeHeader;
+          }
+
           const audioStreamRes = await axios.get(streamUrl, {
             responseType: 'stream',
             timeout: 15000,
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-              'Accept': '*/*',
-            },
+            headers: forwardHeaders,
           });
 
-          res.setHeader('Content-Type', 'audio/mp4');
+          res.setHeader('Access-Control-Allow-Origin', '*');
+          res.setHeader('Access-Control-Allow-Headers', '*');
+          res.setHeader('Accept-Ranges', 'bytes');
+          res.setHeader('Content-Type', audioStreamRes.headers['content-type'] || 'audio/mp4');
+
+          if (audioStreamRes.headers['content-range']) {
+            res.setHeader('Content-Range', audioStreamRes.headers['content-range']);
+            res.status(206);
+          } else {
+            res.status(200);
+          }
+
           if (audioStreamRes.headers['content-length']) {
             res.setHeader('Content-Length', audioStreamRes.headers['content-length']);
           }
