@@ -687,17 +687,20 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             }
           } catch {}
 
-          // Try 2: Multi-Query Dynamic Search (Artists, Genres, Similar Hits)
+          // Try 2: Multi-Query Dynamic Search (Related Artists, Genres, Similar Hits)
           if (newTracks.length === 0) {
             const isEnglish = /[a-zA-Z]/.test(cleanName) && !/[\u0900-\u097F]/.test(cleanName);
             
             const searchQueries = [
+              primaryArtist ? `${primaryArtist}` : '',
               primaryArtist && secondaryArtist ? `${secondaryArtist}` : '',
-              primaryArtist ? `${primaryArtist} hits` : '',
               primaryArtist ? `similar to ${primaryArtist}` : '',
-              secondaryArtist ? `${secondaryArtist} top songs` : '',
-              isEnglish ? 'pop hits 2024' : 'hindi romantic songs',
-              isEnglish ? 'top charts spotify' : 'bollywood hits',
+              isEnglish ? 'Shawn Mendes hits' : 'Arijit Singh hits',
+              isEnglish ? 'Ed Sheeran hits' : 'Shreya Ghoshal hits',
+              isEnglish ? 'Dua Lipa hits' : 'Atif Aslam hits',
+              isEnglish ? 'The Weeknd hits' : 'Jubin Nautiyal hits',
+              isEnglish ? 'Taylor Swift hits' : 'Pritam hits',
+              isEnglish ? 'top global pop charts' : 'top bollywood hits',
             ].filter(Boolean);
 
             for (const q of searchQueries) {
@@ -739,19 +742,7 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
                       };
                     });
 
-                    let filtered = parsed.filter((t: Track) => !isSongAlreadyPlayed(t.id, t.name));
-                    
-                    // If all songs in search result have been played, reset title history except current track
-                    if (filtered.length === 0 && parsed.length > 0) {
-                      console.log('[AUTOPLAY] All session songs played. Resetting played title history...');
-                      playedHistoryRef.current.clear();
-                      playedSongTitlesRef.current.clear();
-                      playedHistoryRef.current.add(currentTrack.id);
-                      if (currentTrack.name) {
-                        playedSongTitlesRef.current.add(currentNormTitle);
-                      }
-                      filtered = parsed.filter((t: Track) => t.id !== currentTrack.id && normalizeTitle(t.name) !== currentNormTitle);
-                    }
+                    const filtered = parsed.filter((t: Track) => !isSongAlreadyPlayed(t.id, t.name));
 
                     if (filtered.length > 0) {
                       newTracks = filtered;
