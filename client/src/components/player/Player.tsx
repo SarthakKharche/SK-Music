@@ -446,50 +446,57 @@ const Player: React.FC = () => {
       }`}
     >
       {isFullscreen ? (
-        // Fullscreen Layout with Fixed Blurred Card Background
-        <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center p-8 overflow-y-auto overflow-x-hidden pointer-events-auto">
-          {/* Fixed Glowing Background Artwork */}
-          {albumImageUrl ? (
-            <img
-              src={getHighResImageUrl(albumImageUrl)}
-              alt=""
-              className="fixed inset-0 w-full h-full object-cover filter blur-[100px] scale-125 opacity-55 saturate-150 brightness-90 transition-all duration-700 pointer-events-none select-none"
-            />
-          ) : (
-            <div className="fixed inset-0 bg-gradient-to-b from-indigo-900/40 via-spotify-dark to-black pointer-events-none" />
-          )}
-
-          {/* Fixed Dark Overlay */}
-          <div className="fixed inset-0 bg-black/55 backdrop-blur-2xl pointer-events-none" />
-
-          <div className="relative z-10 w-full max-w-4xl flex flex-col items-center gap-8 my-auto">
-            {/* Album Art - Large */}
+        // Fullscreen Solid Dark Spotify Layout (No glassmorphism, clean icon-only play button, volume slider & download button)
+        <div className="fixed inset-0 z-[100] bg-[#121212] flex flex-col items-center justify-center p-6 md:p-10 overflow-y-auto overflow-x-hidden pointer-events-auto">
+          <div className="relative z-10 w-full max-w-2xl flex flex-col items-center gap-6 md:gap-8 my-auto">
+            {/* Album Art - Large Solid Card */}
             {albumImageUrl && (
               <img
                 src={getHighResImageUrl(albumImageUrl)}
                 alt={albumName}
-                className="w-80 h-80 rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.8)] object-cover border border-white/10"
+                className="w-64 h-64 md:w-80 md:h-80 rounded-2xl shadow-2xl object-cover"
               />
             )}
             
             {/* Track Info - Large */}
-            <div className="text-center flex flex-col items-center">
-              <div className="flex items-center gap-4">
-                <h1 className="text-4xl font-bold text-white drop-shadow-md">{trackName}</h1>
+            <div className="text-center flex flex-col items-center w-full px-4">
+              <div className="flex items-center justify-center gap-4 w-full">
+                <h1 className="text-2xl md:text-4xl font-bold text-white truncate max-w-lg">{trackName}</h1>
                 <button 
                   onClick={handleToggleLike}
-                  className={`transition-transform hover:scale-110 cursor-pointer ${isLiked ? 'text-spotify-green' : 'text-white/40 hover:text-white'}`}
+                  className={`transition-transform hover:scale-110 cursor-pointer flex-shrink-0 ${isLiked ? 'text-spotify-green' : 'text-white/40 hover:text-white'}`}
                   title={isLiked ? 'Remove from Liked Songs' : 'Save to Liked Songs'}
                 >
-                  <FiHeart size={28} fill={isLiked ? '#1DB954' : 'none'} />
+                  <FiHeart size={26} fill={isLiked ? '#1DB954' : 'none'} />
                 </button>
+                {(() => {
+                  const status = currentTrack ? syncStatus.get(currentTrack.id) : null;
+                  return (
+                    <button
+                      onClick={handleToggleOffline}
+                      className={`transition-transform hover:scale-110 cursor-pointer flex-shrink-0 ${
+                        isCached ? 'text-spotify-green' : 'text-white/40 hover:text-white'
+                      }`}
+                      disabled={status?.status === 'downloading'}
+                      title={isCached ? 'Already downloaded (Click to remove)' : 'Download for offline'}
+                    >
+                      {status?.status === 'downloading' ? (
+                        <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-spotify-green"></div>
+                      ) : isCached ? (
+                        <FiCheck size={26} />
+                      ) : (
+                        <FiDownload size={26} />
+                      )}
+                    </button>
+                  );
+                })()}
               </div>
-              <p className="text-xl text-spotify-lightgray mt-2 font-medium">{artistNames}</p>
+              <p className="text-base md:text-xl text-spotify-lightgray mt-1.5 font-medium truncate max-w-md">{artistNames}</p>
             </div>
 
-            {/* Controls - Large */}
-            <div className="w-full">
-              <div className="flex items-center justify-center gap-6 mb-6">
+            {/* Controls - Icon-only Play/Pause (No Circle) */}
+            <div className="w-full space-y-6">
+              <div className="flex items-center justify-center gap-6 md:gap-8">
                 <button 
                   onClick={toggleShuffle}
                   className={`p-2 transition-colors ${
@@ -508,15 +515,16 @@ const Player: React.FC = () => {
                   <FiSkipBack size={32} fill="white" />
                 </button>
 
+                {/* Pure Icon Play / Pause (No Circle / Shape Container) */}
                 <button
                   onClick={togglePlayPause}
-                  className="w-16 h-16 bg-spotify-green rounded-full flex items-center justify-center shadow-xl hover:scale-105 active:scale-95 transition-all"
+                  className="p-3 text-white hover:text-spotify-green hover:scale-110 active:scale-95 transition-all cursor-pointer"
                   title={isPlaying ? 'Pause' : 'Play'}
                 >
                   {isPlaying ? (
-                    <FiPause size={32} className="text-black" fill="black" />
+                    <FiPause size={48} className="text-white fill-white" />
                   ) : (
-                    <FiPlay size={32} className="text-black ml-1" fill="black" />
+                    <FiPlay size={48} className="text-white fill-white" />
                   )}
                 </button>
 
@@ -558,7 +566,7 @@ const Player: React.FC = () => {
                   ref={progressRef}
                   onClick={handleProgressClick}
                   onMouseDown={handleProgressMouseDown}
-                  className="relative w-full h-3 bg-white/20 hover:h-4 rounded-full cursor-pointer group transition-all"
+                  className="relative w-full h-2.5 bg-white/20 hover:h-3.5 rounded-full cursor-pointer group transition-all"
                 >
                   <div 
                     className="absolute top-0 left-0 h-full bg-spotify-green rounded-full relative"
@@ -567,20 +575,40 @@ const Player: React.FC = () => {
                     <div className="absolute right-0 top-1/2 -translate-y-1/2 w-4 h-4 bg-white rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity" />
                   </div>
                 </div>
-                <div className="flex items-center justify-between text-sm text-spotify-lightgray font-medium">
+                <div className="flex items-center justify-between text-xs md:text-sm text-spotify-lightgray font-medium">
                   <span>{formatDuration(localProgress * 1000)}</span>
                   <span>{formatDuration(duration * 1000)}</span>
                 </div>
               </div>
 
+              {/* Fullscreen Volume Slider Bar */}
+              <div className="flex items-center justify-center gap-3 w-full max-w-xs mx-auto pt-2">
+                <button onClick={toggleMute} className="text-spotify-lightgray hover:text-white transition-colors">
+                  <VolumeIcon size={20} />
+                </button>
+                <div 
+                  ref={volumeRef}
+                  onClick={handleVolumeClick}
+                  onMouseDown={handleVolumeMouseDown}
+                  className="relative flex-1 h-1.5 bg-white/20 hover:h-2 rounded-full cursor-pointer group transition-all"
+                >
+                  <div 
+                    className="absolute top-0 left-0 h-full bg-white group-hover:bg-spotify-green rounded-full relative"
+                    style={{ width: `${volumePercent}%` }}
+                  >
+                    <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3.5 h-3.5 bg-white rounded-full shadow opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </div>
+                </div>
+              </div>
+
               {/* Exit Fullscreen Button */}
-              <div className="flex items-center justify-center mt-6">
+              <div className="flex items-center justify-center pt-2">
                 <button 
                   onClick={toggleFullscreen}
-                  className="px-6 py-2 rounded-full border border-white/20 hover:bg-white/10 text-white font-semibold text-sm transition-all flex items-center gap-2"
+                  className="px-6 py-2 rounded-full border border-white/20 hover:bg-white/10 text-white font-semibold text-xs md:text-sm transition-all flex items-center gap-2"
                   title={isFullscreen ? 'Exit Fullscreen (ESC)' : 'Fullscreen (F)'}
                 >
-                  {isFullscreen ? <FiMinimize2 size={24} /> : <FiMaximize2 size={24} />}
+                  {isFullscreen ? <FiMinimize2 size={20} /> : <FiMaximize2 size={20} />} Exit Fullscreen
                 </button>
               </div>
             </div>
