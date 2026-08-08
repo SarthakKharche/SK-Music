@@ -122,6 +122,44 @@ const Player: React.FC = () => {
     return Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
   };
 
+  const handleVolumeTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    setIsDraggingVolume(true);
+    if (e.touches && e.touches[0]) {
+      const newVol = calculateNewVolume(e.touches[0].clientX);
+      if (newVol !== undefined) {
+        setPlayerVolume(newVol);
+      }
+    }
+  };
+
+  const handleVolumeTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (e.touches && e.touches[0]) {
+      const newVol = calculateNewVolume(e.touches[0].clientX);
+      if (newVol !== undefined) {
+        setPlayerVolume(newVol);
+      }
+    }
+  };
+
+  const handleProgressTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    setIsDraggingProgress(true);
+    if (e.touches && e.touches[0]) {
+      const newTime = calculateNewTime(e.touches[0].clientX);
+      if (newTime !== undefined) {
+        setLocalProgress(newTime);
+      }
+    }
+  };
+
+  const handleProgressTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (e.touches && e.touches[0]) {
+      const newTime = calculateNewTime(e.touches[0].clientX);
+      if (newTime !== undefined) {
+        setLocalProgress(newTime);
+      }
+    }
+  };
+
   const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const newTime = calculateNewTime(e.clientX);
     if (newTime !== undefined) {
@@ -566,7 +604,9 @@ const Player: React.FC = () => {
                   ref={fullscreenProgressRef}
                   onClick={handleProgressClick}
                   onMouseDown={handleProgressMouseDown}
-                  className="relative w-full h-2.5 bg-white/20 hover:h-3.5 rounded-full cursor-pointer group transition-all"
+                  onTouchStart={handleProgressTouchStart}
+                  onTouchMove={handleProgressTouchMove}
+                  className="relative w-full h-2.5 bg-white/20 hover:h-3.5 rounded-full cursor-pointer group transition-all touch-none"
                 >
                   <div 
                     className="absolute top-0 left-0 h-full bg-spotify-green rounded-full relative"
@@ -590,7 +630,9 @@ const Player: React.FC = () => {
                   ref={fullscreenVolumeRef}
                   onClick={handleVolumeClick}
                   onMouseDown={handleVolumeMouseDown}
-                  className="relative flex-1 h-1.5 bg-white/20 hover:h-2 rounded-full cursor-pointer group transition-all"
+                  onTouchStart={handleVolumeTouchStart}
+                  onTouchMove={handleVolumeTouchMove}
+                  className="relative flex-1 h-1.5 bg-white/20 hover:h-2 rounded-full cursor-pointer group transition-all touch-none"
                 >
                   <div 
                     className="absolute top-0 left-0 h-full bg-white group-hover:bg-spotify-green rounded-full relative"
@@ -742,7 +784,9 @@ const Player: React.FC = () => {
                   ref={progressRef}
                   onClick={handleProgressClick}
                   onMouseDown={handleProgressMouseDown}
-                  className="relative flex-1 h-1 bg-[#4d4d4d] hover:h-1.5 rounded-full cursor-pointer group transition-all"
+                  onTouchStart={handleProgressTouchStart}
+                  onTouchMove={handleProgressTouchMove}
+                  className="relative flex-1 h-1 bg-[#4d4d4d] hover:h-1.5 rounded-full cursor-pointer group transition-all touch-none"
                 >
                   <div 
                     className="absolute top-0 left-0 h-full bg-white group-hover:bg-spotify-green rounded-full relative"
@@ -778,7 +822,9 @@ const Player: React.FC = () => {
                   ref={volumeRef}
                   onClick={handleVolumeClick}
                   onMouseDown={handleVolumeMouseDown}
-                  className="relative w-24 h-1 bg-[#4d4d4d] hover:h-1.5 rounded-full cursor-pointer group transition-all"
+                  onTouchStart={handleVolumeTouchStart}
+                  onTouchMove={handleVolumeTouchMove}
+                  className="relative w-24 h-1 bg-[#4d4d4d] hover:h-1.5 rounded-full cursor-pointer group transition-all touch-none"
                 >
                   <div 
                     className="absolute top-0 left-0 h-full bg-white group-hover:bg-spotify-green rounded-full relative"
