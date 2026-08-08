@@ -106,6 +106,11 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const lastPauseTimeRef = useRef<number>(0);
   const lastNonZeroVolumeRef = useRef<number>(state.volume > 0 ? state.volume : 0.7);
   const playedHistoryRef = useRef<Set<string>>(new Set());
+  const stateRef = useRef<PlayerState>(state);
+
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
   /**
    * Track listening progress for Made-For-You recommendations.
@@ -631,7 +636,7 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
    * Play next track (supports Spotify / YT Music Autoplay infinite recommendations)
    */
   const next = async (): Promise<void> => {
-    const { queue, queueIndex, repeat, autoplay, currentTrack } = state;
+    const { queue, queueIndex, repeat, autoplay, currentTrack } = stateRef.current;
     
     if (queue.length === 0 && !currentTrack) return;
 
@@ -810,7 +815,7 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
    * Play previous track
    */
   const previous = (): void => {
-    const { queue, queueIndex, currentTime } = state;
+    const { queue, queueIndex, currentTime } = stateRef.current;
 
     // If more than 3 seconds played, restart current track
     if (currentTime > 3) {
@@ -823,7 +828,7 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     let prevIndex = queueIndex - 1;
 
     if (prevIndex < 0) {
-      if (state.repeat === 'all') {
+      if (stateRef.current.repeat === 'all') {
         prevIndex = queue.length - 1;
       } else {
         return;
@@ -838,13 +843,14 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
    * Handle track end
    */
   function handleTrackEnd(): void {
+    const current = stateRef.current;
     // Report completion for the track that just ended
-    if (state.currentTrack && trackingRef.current && !trackingRef.current.reported) {
-      reportListeningEvent(state.currentTrack, 'complete', 100);
+    if (current.currentTrack && trackingRef.current && !trackingRef.current.reported) {
+      reportListeningEvent(current.currentTrack, 'complete', 100);
       trackingRef.current.reported = true;
     }
 
-    if (state.repeat === 'one') {
+    if (current.repeat === 'one') {
       // Replay current track
       if (isYouTube && youtubePlayerRef.current && typeof youtubePlayerRef.current.seekTo === 'function') {
         try {
