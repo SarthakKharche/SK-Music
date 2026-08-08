@@ -278,21 +278,6 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
     audioRef.current = audio;
 
-    // Register Media Session action handlers for OS lockscreen controls
-    if (typeof navigator !== 'undefined' && 'mediaSession' in navigator) {
-      try {
-        navigator.mediaSession.setActionHandler('play', () => resume());
-        navigator.mediaSession.setActionHandler('pause', () => pause());
-        navigator.mediaSession.setActionHandler('previoustrack', () => previous());
-        navigator.mediaSession.setActionHandler('nexttrack', () => next());
-        navigator.mediaSession.setActionHandler('seekto', (details) => {
-          if (details.seekTime !== undefined) seek(details.seekTime);
-        });
-      } catch (e) {
-        console.warn('MediaSession action handler error:', e);
-      }
-    }
-
     return () => {
       audio.pause();
       audio.src = '';
@@ -538,6 +523,7 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         if (youtubePlayerRef.current && typeof youtubePlayerRef.current.pauseVideo === 'function') {
           try { youtubePlayerRef.current.pauseVideo(); } catch {}
         }
+
         if (audioRef.current && url) {
           audioRef.current.src = url;
           audioRef.current.load();
@@ -545,31 +531,38 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           if (playPromise !== undefined) {
             playPromise.catch((err) => {
               console.warn('HTML5 audio play error:', err);
+              setState((prev) => ({ ...prev, isPlaying: false }));
             });
           }
         }
+
+        // Set OS MediaSession metadata for background playback & lockscreen controls
+        if (typeof navigator !== 'undefined' && 'mediaSession' in navigator) {
+          try {
+            navigator.mediaSession.metadata = new MediaMetadata({
+              title: track.name,
+              artist: track.artists?.map((a) => a.name).join(', ') || 'SK Music',
+              album: track.album?.name || 'SK Music',
+              artwork: [
+                { src: track.album?.imageUrl || '/pwa-192x192.png', sizes: '192x192', type: 'image/png' },
+                { src: track.album?.imageUrl || '/pwa-512x512.png', sizes: '512x512', type: 'image/png' },
+              ],
+            });
+          } catch {}
+        }
+
+        setState((prev) => ({
+          ...prev,
+          currentTrack: track,
+          isPlaying: true,
+        }));
       } catch (error) {
         console.error('Failed to play track:', error);
         setState((prev) => ({ ...prev, isPlaying: false }));
       }
-      
-      if (timeUpdateIntervalRef.current) {
-        clearInterval(timeUpdateIntervalRef.current);
-        timeUpdateIntervalRef.current = null;
-      }
-
-      // Load and play blob or audio stream
-      audio.src = audioUrl;
-      audio.load();
-      await audio.play();
-
-      setState((prev) => ({
-        ...prev,
-        currentTrack: track,
-        isPlaying: true,
-      }));
     } catch (error) {
       console.error('Failed to play track:', error);
+      setState((prev) => ({ ...prev, isPlaying: false }));
     }
   };
 
@@ -792,6 +785,41 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       queueIndex: -1,
     }));
   };
+
+  /**
+   * Register OS Media Session action handlers for mobile background playback & lockscreen controls
+   */
+  useEffect(() => {
+    if (typeof navigator !== 'undefined' && 'mediaSession' in navigator) {
+      try {
+        navigator.mediaSession.setActionHandler('play', () => {
+          if (isYouTube && youtubePlayerRef.current && typeof youtubePlayerRef.current.playVideo === 'function') {
+            youtubePlayerRef.current.playVideo();
+          } else {
+            audioRef.current?.play();
+          }
+          setState((prev) => ({ ...prev, isPlaying: true }));
+        });
+
+        navigator.mediaSession.setActionHandler('pause', () => {
+          if (isYouTube && youtubePlayerRef.current && typeof youtubePlayerRef.current.pauseVideo === 'function') {
+            youtubePlayerRef.current.pauseVideo();
+          } else {
+            audioRef.current?.pause();
+          }
+          setState((prev) => ({ ...prev, isPlaying: false }));
+        });
+
+        navigator.mediaSession.setActionHandler('previoustrack', () => previous());
+        navigator.mediaSession.setActionHandler('nexttrack', () => next());
+        navigator.mediaSession.setActionHandler('seekto', (details) => {
+          if (details.seekTime !== undefined) seek(details.seekTime);
+        });
+      } catch (e) {
+        console.warn('MediaSession handler registration failed:', e);
+      }
+    }
+  }, [state.currentTrack, state.isPlaying, isYouTube]);
 
   const value: PlayerContextType = {
     ...state,

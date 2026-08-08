@@ -229,6 +229,27 @@ router.get('/playlists/:playlistId/tracks', isAuthenticated, async (req, res) =>
     const { playlistId } = req.params;
     const db = getFirestore();
 
+    if (playlistId === 'custom_liked_songs') {
+      const likedSnapshot = await db
+        .collection('users')
+        .doc(user.uid)
+        .collection('liked_tracks')
+        .get();
+
+      let tracks = likedSnapshot.docs.map((doc) => doc.data());
+      
+      // Fallback: If no liked_tracks subcollection docs, fetch from user's saved tracks
+      if (tracks.length === 0) {
+        const userTracksSnapshot = await db
+          .collection('tracks')
+          .where('userId', '==', user.uid)
+          .get();
+        tracks = userTracksSnapshot.docs.map((doc) => doc.data());
+      }
+
+      return res.json({ tracks });
+    }
+
     const playlistDoc = await db.collection('playlists').doc(playlistId).get();
     if (!playlistDoc.exists) {
       return res.status(404).json({ error: 'Playlist not found' });
