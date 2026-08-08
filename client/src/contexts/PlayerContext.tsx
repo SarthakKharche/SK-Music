@@ -106,7 +106,12 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const lastPauseTimeRef = useRef<number>(0);
   const lastNonZeroVolumeRef = useRef<number>(state.volume > 0 ? state.volume : 0.7);
   const playedHistoryRef = useRef<Set<string>>(new Set());
+  const playedSongTitlesRef = useRef<Set<string>>(new Set());
   const stateRef = useRef<PlayerState>(state);
+
+  const normalizeTitle = (title: string): string => {
+    return (title || '').toLowerCase().replace(/[\(\)\[\]"'\-_feat\.]/g, '').replace(/\s+/g, ' ').trim();
+  };
 
   useEffect(() => {
     stateRef.current = state;
@@ -311,6 +316,9 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
       // Add to session listening history & IndexedDB
       playedHistoryRef.current.add(track.id);
+      if (track.name) {
+        playedSongTitlesRef.current.add(normalizeTitle(track.name));
+      }
       indexedDB.addToHistory(track).catch(console.error);
 
       // Get audio URL (cache-first)
@@ -646,32 +654,50 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       if (repeat === 'all') {
         nextIndex = 0;
       } else if (autoplay && currentTrack) {
-        // Autoplay Mode: Fetch 100% real dynamic recommendations (Spotify / YT Music style)
+        // Autoplay Mode: Fetch 100% real dynamic, diverse recommendations (Spotify / YT Music style)
         try {
-          const primaryArtist = currentTrack.artists?.[0]?.name?.split(',')[0]?.split('&')[0]?.trim() || '';
+          const artistList = (currentTrack.artists || []).map((a) => a.name.trim()).filter(Boolean);
+          const primaryArtist = artistList[0]?.split(',')[0]?.split('&')[0]?.trim() || '';
+          const secondaryArtist = artistList[1]?.split(',')[0]?.split('&')[0]?.trim() || '';
           const cleanName = (currentTrack.name || '').replace(/[\(\)\[\]"'\-_]/g, ' ').replace(/\s+/g, ' ').trim();
-          
-          console.log(`[AUTOPLAY] Reached end of queue. Fetching real recommendations for artist: "${primaryArtist}", song: "${cleanName}"`);
+          const currentNormTitle = normalizeTitle(currentTrack.name || '');
+
+          console.log(`[AUTOPLAY] Queue ended. Fetching diverse recommendations for: "${cleanName}" by "${primaryArtist}"`);
           
           let newTracks: Track[] = [];
+
+          // Helper to check if a track or title was played in session or is in current queue
+          const isSongAlreadyPlayed = (trackId: string, trackTitle: string): boolean => {
+            if (trackId === currentTrack.id) return true;
+            if (playedHistoryRef.current.has(trackId)) return true;
+            const norm = normalizeTitle(trackTitle);
+            if (norm && (norm === currentNormTitle || playedSongTitlesRef.current.has(norm))) return true;
+            if (queue.some((q) => q.id === trackId || normalizeTitle(q.name) === norm)) return true;
+            return false;
+          };
 
           // Try 1: Express Radio Recommendations API
           try {
             const res = await api.get(`/radio/recommendations?trackId=${currentTrack.id}&trackName=${encodeURIComponent(cleanName)}&artistName=${encodeURIComponent(primaryArtist)}`);
             const fetched: Track[] = res.data?.tracks || [];
             if (fetched.length > 0) {
-              const existingIds = new Set(queue.map((t: Track) => t.id));
-              newTracks = fetched.filter((t: Track) => t.id !== currentTrack.id && !existingIds.has(t.id) && !playedHistoryRef.current.has(t.id));
+              // Shuffle fetched candidates for variety
+              const shuffled = [...fetched].sort(() => Math.random() - 0.5);
+              newTracks = shuffled.filter((t: Track) => !isSongAlreadyPlayed(t.id, t.name));
             }
           } catch {}
 
-          // Try 2: Direct Client-Side JioSaavn Search API for Artist / Genre (100% Real Songs)
+          // Try 2: Multi-Query Dynamic Search (Artists, Genres, Similar Hits)
           if (newTracks.length === 0) {
+            const isEnglish = /[a-zA-Z]/.test(cleanName) && !/[\u0900-\u097F]/.test(cleanName);
+            
             const searchQueries = [
-              primaryArtist ? `${primaryArtist}` : '',
-              primaryArtist ? `${primaryArtist} top hits` : '',
-              cleanName ? `${cleanName}` : '',
-              'Hindi top songs',
+              primaryArtist && secondaryArtist ? `${secondaryArtist}` : '',
+              primaryArtist ? `${primaryArtist} hits` : '',
+              primaryArtist ? `similar to ${primaryArtist}` : '',
+              secondaryArtist ? `${secondaryArtist} top songs` : '',
+              isEnglish ? 'pop hits 2024' : 'hindi romantic songs',
+              isEnglish ? 'top charts spotify' : 'bollywood hits',
             ].filter(Boolean);
 
             for (const q of searchQueries) {
@@ -682,7 +708,10 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
                   const results = data?.data?.results || data?.results || [];
 
                   if (Array.isArray(results) && results.length > 0) {
-                    const parsed: Track[] = results.map((item: any) => {
+                    // Shuffle search results so different songs play every time
+                    const shuffledResults = [...results].sort(() => Math.random() - 0.5);
+
+                    const parsed: Track[] = shuffledResults.map((item: any) => {
                       const songId = item.id ? (item.id.startsWith('yt-') ? item.id : `yt-${item.id}`) : `yt-${Math.random()}`;
                       const rawImg = Array.isArray(item.image)
                         ? (item.image[2]?.link || item.image[1]?.link || item.image[0]?.link || item.image[0]?.url)
@@ -710,25 +739,29 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
                       };
                     });
 
-                    const existingIds = new Set(queue.map((t: Track) => t.id));
-                    let filtered = parsed.filter((t: Track) => t.id !== currentTrack.id && !existingIds.has(t.id) && !playedHistoryRef.current.has(t.id));
+                    let filtered = parsed.filter((t: Track) => !isSongAlreadyPlayed(t.id, t.name));
                     
-                    // If all songs in search result have been played, clear playedHistoryRef except current track
+                    // If all songs in search result have been played, reset title history except current track
                     if (filtered.length === 0 && parsed.length > 0) {
+                      console.log('[AUTOPLAY] All session songs played. Resetting played title history...');
                       playedHistoryRef.current.clear();
+                      playedSongTitlesRef.current.clear();
                       playedHistoryRef.current.add(currentTrack.id);
-                      filtered = parsed.filter((t: Track) => t.id !== currentTrack.id && !existingIds.has(t.id));
+                      if (currentTrack.name) {
+                        playedSongTitlesRef.current.add(currentNormTitle);
+                      }
+                      filtered = parsed.filter((t: Track) => t.id !== currentTrack.id && normalizeTitle(t.name) !== currentNormTitle);
                     }
 
                     if (filtered.length > 0) {
                       newTracks = filtered;
-                      console.log(`[AUTOPLAY] Resolved ${newTracks.length} real dynamic recommendations for query: "${q}"`);
+                      console.log(`[AUTOPLAY] Discovered ${newTracks.length} diverse recommendations for query: "${q}"`);
                       break;
                     }
                   }
                 }
               } catch (jioErr) {
-                console.warn('[AUTOPLAY] JioSaavn direct search query skipped:', q, jioErr);
+                console.warn('[AUTOPLAY] JioSaavn search query skipped:', q, jioErr);
               }
             }
           }
