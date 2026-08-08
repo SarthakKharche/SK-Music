@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef, ReactNod
 import { audioCacheManager } from '../services/audioCacheManager';
 import { indexedDB } from '../services/indexedDB';
 import { recordListeningEvent } from '../services/madeForYouApi';
+import api from '../utils/api';
 import type { Track, PlayerState } from '../types';
 
 // Extend window to include YouTube IFrame API
@@ -65,6 +66,7 @@ interface PlayerContextType extends PlayerState {
   toggleMute: () => void;
   toggleRepeat: () => void;
   toggleShuffle: () => void;
+  toggleAutoplay: () => void;
   clearQueue: () => void;
   isYouTube: boolean;
 }
@@ -92,6 +94,7 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       queueIndex: -1,
       repeat: 'off',
       shuffle: false,
+      autoplay: true,
     };
   });
 
@@ -620,25 +623,54 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   };
 
   /**
-   * Play next track
+   * Play next track (supports Spotify / YT Music Autoplay infinite recommendations)
    */
-  const next = (): void => {
-    const { queue, queueIndex, repeat } = state;
+  const next = async (): Promise<void> => {
+    const { queue, queueIndex, repeat, autoplay, currentTrack } = state;
     
-    if (queue.length === 0) return;
+    if (queue.length === 0 && !currentTrack) return;
 
     let nextIndex = queueIndex + 1;
 
     if (nextIndex >= queue.length) {
       if (repeat === 'all') {
         nextIndex = 0;
+      } else if (autoplay && currentTrack && navigator.onLine) {
+        // Autoplay Mode: Fetch similar recommended songs automatically
+        try {
+          console.log('[AUTOPLAY] Reached end of queue. Fetching recommended tracks for:', currentTrack.name);
+          const cleanName = encodeURIComponent(currentTrack.name || '');
+          const cleanArtist = encodeURIComponent(currentTrack.artists?.[0]?.name || '');
+          const res = await api.get(`/radio/recommendations?trackId=${currentTrack.id}&trackName=${cleanName}&artistName=${cleanArtist}`);
+          
+          const recommendedTracks: Track[] = res.data?.tracks || [];
+          if (recommendedTracks.length > 0) {
+            // Filter out tracks already in queue
+            const existingIds = new Set(queue.map(t => t.id));
+            const newTracks = recommendedTracks.filter(t => !existingIds.has(t.id));
+
+            if (newTracks.length > 0) {
+              const updatedQueue = [...queue, ...newTracks];
+              setState((prev) => ({
+                ...prev,
+                queue: updatedQueue,
+                queueIndex: nextIndex,
+              }));
+              await playTrack(newTracks[0]);
+              return;
+            }
+          }
+        } catch (autoErr) {
+          console.warn('[AUTOPLAY] Recommendation fetch skipped:', autoErr);
+        }
+        return;
       } else {
         return;
       }
     }
 
     setState((prev) => ({ ...prev, queueIndex: nextIndex }));
-    playTrack(queue[nextIndex]);
+    await playTrack(queue[nextIndex]);
   };
 
   /**
@@ -770,6 +802,13 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   };
 
   /**
+   * Toggle Autoplay
+   */
+  const toggleAutoplay = (): void => {
+    setState((prev) => ({ ...prev, autoplay: !prev.autoplay }));
+  };
+
+  /**
    * Clear queue
    */
   const clearQueue = (): void => {
@@ -828,6 +867,7 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     toggleMute,
     toggleRepeat,
     toggleShuffle,
+    toggleAutoplay,
     clearQueue,
     isYouTube,
   };

@@ -101,6 +101,7 @@ export interface PlayerState {
   queueIndex: number;
   repeat: 'off' | 'one' | 'all';
   shuffle: boolean;
+  autoplay: boolean;
 }
 
 /**

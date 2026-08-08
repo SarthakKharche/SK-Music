@@ -24,6 +24,8 @@ const PREFERRED_PORT = Number(process.env.PORT) || 5000;
 // Initialize Firebase
 initializeFirebase();
 
+import radioRoutes from './routes/radio.routes';
+
 // Security middleware
 app.use(helmet({
   contentSecurityPolicy: false,
@@ -66,6 +68,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/spotify', rateLimiter, spotifyRoutes);
 app.use('/api/user', rateLimiter, userRoutes);
 app.use('/api/audio', rateLimiter, audioRoutes);
+app.use('/api/radio', rateLimiter, radioRoutes);
 app.use('/api/made-for-you', rateLimiter, madeForYouRoutes);
 app.use('/api/youtube-music', rateLimiter, youtubeMusicRoutes);
 

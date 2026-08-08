@@ -16,7 +16,8 @@ import {
   FiMaximize2,
   FiMinimize2,
   FiDownload,
-  FiCheck
+  FiCheck,
+  FiRadio
 } from 'react-icons/fi';
 import { formatDuration } from '../../utils/helpers';
 import { useState, useRef, useEffect } from 'react';
@@ -33,6 +34,7 @@ const Player: React.FC = () => {
     volume,
     repeat,
     shuffle,
+    autoplay,
     togglePlayPause,
     next,
     previous,
@@ -41,6 +43,7 @@ const Player: React.FC = () => {
     toggleMute,
     toggleRepeat,
     toggleShuffle,
+    toggleAutoplay,
   } = usePlayer();
 
   const { toggleOfflineTrack, syncStatus } = useOffline();
@@ -742,6 +745,16 @@ const Player: React.FC = () => {
                       1
                     </span>
                   )}
+                </button>
+
+                <button
+                  onClick={toggleAutoplay}
+                  className={`p-1 relative transition-colors ${
+                    autoplay ? 'text-spotify-green' : 'text-[#b3b3b3] hover:text-white'
+                  }`}
+                  title={autoplay ? 'Autoplay ON (Similar songs play automatically)' : 'Autoplay OFF'}
+                >
+                  <FiRadio size={16} />
                 </button>
               </div>
 
