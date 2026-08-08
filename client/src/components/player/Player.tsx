@@ -461,12 +461,12 @@ const Player: React.FC = () => {
       className={`${
         isFullscreen 
           ? 'fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center p-8 overflow-y-auto overflow-x-hidden' 
-          : 'h-[90px] bg-[#181818] border-t border-[#282828] w-full z-40'
+          : 'pointer-events-none md:pointer-events-auto md:h-[90px] md:bg-[#181818] md:border-t md:border-[#282828] w-full z-40'
       }`}
     >
       {isFullscreen ? (
         // Fullscreen Layout with Fixed Blurred Card Background
-        <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center p-8 overflow-y-auto overflow-x-hidden">
+        <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center p-8 overflow-y-auto overflow-x-hidden pointer-events-auto">
           {/* Fixed Glowing Background Artwork */}
           {albumImageUrl ? (
             <img
@@ -521,107 +521,84 @@ const Player: React.FC = () => {
 
                 <button 
                   onClick={previous}
-                  className="text-white hover:scale-110 transition-transform p-2"
+                  className="p-2 text-white hover:text-spotify-green transition-colors"
                   title="Previous"
                 >
-                  <FiSkipBack size={32} />
+                  <FiSkipBack size={32} fill="white" />
                 </button>
 
                 <button
                   onClick={togglePlayPause}
-                  className="w-16 h-16 bg-white rounded-full flex items-center justify-center hover:scale-105 transition-transform shadow-2xl"
+                  className="w-16 h-16 bg-spotify-green rounded-full flex items-center justify-center shadow-xl hover:scale-105 active:scale-95 transition-all"
                   title={isPlaying ? 'Pause' : 'Play'}
                 >
                   {isPlaying ? (
-                    <FiPause className="text-black" size={32} />
+                    <FiPause size={32} className="text-black" fill="black" />
                   ) : (
-                    <FiPlay className="text-black ml-1" size={32} />
+                    <FiPlay size={32} className="text-black ml-1" fill="black" />
                   )}
                 </button>
 
                 <button 
                   onClick={next}
-                  className="text-white hover:scale-110 transition-transform p-2"
+                  className="p-2 text-white hover:text-spotify-green transition-colors"
                   title="Next"
                 >
-                  <FiSkipForward size={32} />
+                  <FiSkipForward size={32} fill="white" />
                 </button>
 
                 <button 
                   onClick={toggleRepeat}
-                  className={`p-2 relative transition-colors ${
+                  className={`p-2 transition-colors relative ${
                     repeat !== 'off' ? 'text-spotify-green' : 'text-[#b3b3b3] hover:text-white'
                   }`}
-                  title={`Repeat: ${repeat}`}
+                  title={repeat === 'one' ? 'Repeat One' : repeat === 'all' ? 'Repeat All' : 'Repeat Off'}
                 >
                   <FiRepeat size={24} />
                   {repeat === 'one' && (
-                    <span className="absolute top-0 right-0 text-[10px] font-bold bg-spotify-green text-black rounded-full w-4 h-4 flex items-center justify-center">
-                      1
-                    </span>
+                    <span className="absolute top-1 right-1 text-[10px] font-bold bg-spotify-green text-black rounded-full w-3 h-3 flex items-center justify-center">1</span>
                   )}
+                </button>
+
+                <button 
+                  onClick={toggleAutoplay}
+                  className={`p-2 transition-colors ${
+                    autoplay ? 'text-spotify-green' : 'text-[#b3b3b3] hover:text-white'
+                  }`}
+                  title={autoplay ? 'Autoplay On (Infinite Similar Tracks)' : 'Autoplay Off'}
+                >
+                  <FiRadio size={24} />
                 </button>
               </div>
 
               {/* Progress Bar - Large */}
-              <div className="flex items-center gap-4 w-full mb-6">
-                <span className="text-sm text-spotify-lightgray w-12 text-right font-mono select-none">
-                  {formatDuration(localProgress * 1000)}
-                </span>
+              <div className="space-y-2">
                 <div 
-                  ref={fullscreenProgressRef}
-                  className="flex-1 h-3 bg-white/20 rounded-full cursor-pointer group relative py-1"
+                  ref={progressTrackRef}
                   onClick={handleProgressClick}
                   onMouseDown={handleProgressMouseDown}
+                  onTouchStart={handleProgressTouchStart}
+                  onTouchMove={handleProgressTouchMove}
+                  className="relative w-full h-3 bg-white/20 hover:h-4 rounded-full cursor-pointer group transition-all"
                 >
                   <div 
-                    className="h-full bg-white group-hover:bg-spotify-green rounded-full relative transition-colors"
+                    className="absolute top-0 left-0 h-full bg-spotify-green rounded-full relative"
                     style={{ width: `${progress}%` }}
                   >
-                    <div 
-                      className={`absolute right-0 top-1/2 -translate-y-1/2 w-5 h-5 bg-white rounded-full shadow-lg ${
-                        isDraggingProgress ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                      } transition-opacity`}
-                    />
+                    <div className="absolute right-0 top-1/2 -translate-y-1/2 w-4 h-4 bg-white rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity" />
                   </div>
                 </div>
-                <span className="text-sm text-spotify-lightgray w-12 font-mono select-none">
-                  {formatDuration(duration * 1000)}
-                </span>
+                <div className="flex items-center justify-between text-sm text-spotify-lightgray font-medium">
+                  <span>{formatDuration(localProgress * 1000)}</span>
+                  <span>{formatDuration(duration * 1000)}</span>
+                </div>
               </div>
 
-              {/* Volume & Extras - Large */}
-              <div className="flex items-center justify-center gap-4">
-                <button 
-                  onClick={toggleMute}
-                  className="text-[#b3b3b3] hover:text-white transition-colors p-2"
-                >
-                  <VolumeIcon size={20} />
-                </button>
-                <div 
-                  ref={fullscreenVolumeRef}
-                  className="w-36 h-4 bg-white/20 rounded-full cursor-pointer group relative py-1 touch-none"
-                  onClick={handleVolumeClick}
-                  onMouseDown={handleVolumeMouseDown}
-                  onTouchStart={handleVolumeTouchStart}
-                  onTouchMove={handleVolumeTouchMove}
-                  onTouchEnd={() => setIsDraggingVolume(false)}
-                >
-                  <div 
-                    className="h-full bg-white group-hover:bg-spotify-green rounded-full relative transition-colors"
-                    style={{ width: `${volumePercent}%` }}
-                  >
-                    <div 
-                      className={`absolute right-0 top-1/2 -translate-y-1/2 w-5 h-5 bg-white rounded-full shadow-lg ${
-                        isDraggingVolume ? 'opacity-100 opacity-90' : 'opacity-90'
-                      } transition-opacity`}
-                    />
-                  </div>
-                </div>
-                
+              {/* Exit Fullscreen Button */}
+              <div className="flex items-center justify-center mt-6">
                 <button 
                   onClick={toggleFullscreen}
-                  className="text-spotify-green hover:text-white transition-colors p-2 ml-4 cursor-pointer"
+                  className="px-6 py-2 rounded-full border border-white/20 hover:bg-white/10 text-white font-semibold text-sm transition-all flex items-center gap-2"
                   title={isFullscreen ? 'Exit Fullscreen (ESC)' : 'Fullscreen (F)'}
                 >
                   {isFullscreen ? <FiMinimize2 size={24} /> : <FiMaximize2 size={24} />}
@@ -710,7 +687,7 @@ const Player: React.FC = () => {
 
                 <button
                   onClick={togglePlayPause}
-                  className="bg-white rounded-full w-8 h-8 flex items-center justify-center hover:scale-105 transition-transform"
+                  className="w-8 h-8 bg-white rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-transform"
                   title={isPlaying ? 'Pause' : 'Play'}
                 >
                   {isPlaying ? (
@@ -730,103 +707,94 @@ const Player: React.FC = () => {
 
                 <button
                   onClick={toggleRepeat}
-                  className={`p-1 relative transition-colors ${
+                  className={`p-1 transition-colors relative ${
                     repeat !== 'off' ? 'text-spotify-green' : 'text-[#b3b3b3] hover:text-white'
                   }`}
-                  title={`Repeat: ${repeat}`}
+                  title={repeat === 'one' ? 'Repeat One' : repeat === 'all' ? 'Repeat All' : 'Repeat Off'}
                 >
                   <FiRepeat size={16} />
                   {repeat === 'one' && (
-                    <span className="absolute -top-1 -right-1 text-[10px] font-bold bg-spotify-green text-black rounded-full w-3 h-3 flex items-center justify-center">
-                      1
-                    </span>
+                    <span className="absolute -top-1 -right-1 text-[8px] bg-spotify-green text-black rounded-full w-3 h-3 flex items-center justify-center">1</span>
                   )}
                 </button>
 
                 <button
                   onClick={toggleAutoplay}
-                  className={`p-1 relative transition-colors ${
+                  className={`p-1 transition-colors ${
                     autoplay ? 'text-spotify-green' : 'text-[#b3b3b3] hover:text-white'
                   }`}
-                  title={autoplay ? 'Autoplay ON (Similar songs play automatically)' : 'Autoplay OFF'}
+                  title={autoplay ? 'Autoplay On (Infinite Similar Tracks)' : 'Autoplay Off'}
                 >
                   <FiRadio size={16} />
                 </button>
               </div>
 
-              {/* Desktop Progress Bar */}
+              {/* Progress Bar */}
               <div className="flex items-center gap-2 w-full">
-                <span className="text-[11px] text-[#a7a7a7] w-10 text-right font-mono select-none">
+                <span className="text-[11px] text-[#b3b3b3] min-w-[40px] text-right">
                   {formatDuration(localProgress * 1000)}
                 </span>
                 <div 
-                  ref={progressRef}
-                  className="flex-1 h-2 bg-[#4d4d4d] rounded-full cursor-pointer group relative py-0.5"
+                  ref={progressTrackRef}
                   onClick={handleProgressClick}
                   onMouseDown={handleProgressMouseDown}
+                  onTouchStart={handleProgressTouchStart}
+                  onTouchMove={handleProgressTouchMove}
+                  className="relative flex-1 h-1 bg-[#4d4d4d] hover:h-1.5 rounded-full cursor-pointer group transition-all"
                 >
                   <div 
-                    className="h-full bg-white group-hover:bg-spotify-green rounded-full relative transition-colors"
+                    className="absolute top-0 left-0 h-full bg-white group-hover:bg-spotify-green rounded-full relative"
                     style={{ width: `${progress}%` }}
                   >
-                    <div 
-                      className={`absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow-md ${
-                        isDraggingProgress ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                      } transition-opacity`}
-                    />
+                    <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow opacity-0 group-hover:opacity-100 transition-opacity" />
                   </div>
                 </div>
-                <span className="text-[11px] text-[#a7a7a7] w-10 font-mono select-none">
+                <span className="text-[11px] text-[#b3b3b3] min-w-[40px]">
                   {formatDuration(duration * 1000)}
                 </span>
               </div>
             </div>
 
-            {/* Right: Desktop Volume & Controls */}
+            {/* Right: Volume & Extras */}
             <div className="flex items-center justify-end gap-3 min-w-[180px]">
+              <button 
+                onClick={toggleFullscreen}
+                className="p-1 text-[#b3b3b3] hover:text-white transition-colors"
+                title="Fullscreen (F)"
+              >
+                <FiMaximize2 size={16} />
+              </button>
+
               <div className="flex items-center gap-2">
-                <button 
+                <button
                   onClick={toggleMute}
-                  className="text-[#b3b3b3] hover:text-white transition-colors p-1"
+                  className="p-1 text-[#b3b3b3] hover:text-white transition-colors"
                 >
                   <VolumeIcon size={16} />
                 </button>
                 <div 
-                  ref={volumeRef}
-                  className="w-24 h-3 bg-[#4d4d4d] rounded-full cursor-pointer group relative py-0.5 touch-none"
+                  ref={volumeTrackRef}
                   onClick={handleVolumeClick}
                   onMouseDown={handleVolumeMouseDown}
                   onTouchStart={handleVolumeTouchStart}
                   onTouchMove={handleVolumeTouchMove}
-                  onTouchEnd={() => setIsDraggingVolume(false)}
+                  className="relative w-24 h-1 bg-[#4d4d4d] hover:h-1.5 rounded-full cursor-pointer group transition-all"
                 >
                   <div 
-                    className="h-full bg-white group-hover:bg-spotify-green rounded-full relative transition-colors"
+                    className="absolute top-0 left-0 h-full bg-white group-hover:bg-spotify-green rounded-full relative"
                     style={{ width: `${volumePercent}%` }}
                   >
-                    <div 
-                      className={`absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow-md ${
-                        isDraggingVolume ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                      } transition-opacity`}
-                    />
+                    <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow opacity-0 group-hover:opacity-100 transition-opacity" />
                   </div>
                 </div>
               </div>
-
-              <button 
-                onClick={toggleFullscreen}
-                className="text-[#b3b3b3] hover:text-white transition-colors p-1"
-                title="Fullscreen"
-              >
-                <FiMaximize2 size={14} />
-              </button>
             </div>
           </div>
 
-          {/* MOBILE SPOTIFY FULL-WIDTH MINI-PLAYER BAR (Visible only on Mobile) */}
-          <div className="md:hidden fixed bottom-[52px] left-0 right-0 w-full z-50 bg-[#0d111d]/98 backdrop-blur-2xl border-t border-white/10 shadow-[0_-10px_30px_rgba(0,0,0,0.8)] overflow-hidden">
+          {/* MOBILE SPOTIFY FLOATING MINI-PLAYER CARD (Pill style fixed above bottom nav) */}
+          <div className="md:hidden fixed bottom-[58px] left-2 right-2 z-50 pointer-events-auto bg-[#242424]/98 backdrop-blur-xl border border-white/10 rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.8)] overflow-hidden">
             {/* Top Attached Thin Progress Line */}
-            <div className="w-full h-1 bg-white/10 relative">
+            <div className="w-full h-[3px] bg-white/15 relative">
               <div 
                 className="h-full bg-spotify-green transition-all duration-200"
                 style={{ width: `${progress}%` }}
@@ -835,7 +803,7 @@ const Player: React.FC = () => {
 
             <div 
               onClick={toggleFullscreen}
-              className="px-3 py-2 flex items-center justify-between gap-3 cursor-pointer active:scale-[0.99] transition-transform"
+              className="px-3 py-2 flex items-center justify-between gap-3 cursor-pointer active:scale-[0.98] transition-transform"
             >
               {/* Left: Album Cover + Song Title & Artist */}
               <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -843,19 +811,19 @@ const Player: React.FC = () => {
                   <img
                     src={albumImageUrl}
                     alt={albumName}
-                    className="w-11 h-11 rounded-xl object-cover shadow-md flex-shrink-0 border border-white/10"
+                    className="w-10 h-10 rounded-xl object-cover shadow-md flex-shrink-0 border border-white/10"
                   />
                 ) : (
-                  <div className="w-11 h-11 rounded-xl bg-spotify-green/20 flex items-center justify-center flex-shrink-0">
-                    <FiMusic className="text-spotify-green text-lg" />
+                  <div className="w-10 h-10 rounded-xl bg-spotify-green/20 flex items-center justify-center flex-shrink-0">
+                    <FiMusic className="text-spotify-green text-base" />
                   </div>
                 )}
 
                 <div className="flex flex-col min-w-0 flex-1">
-                  <h4 className="text-sm font-semibold text-white truncate leading-tight">
+                  <h4 className="text-xs font-bold text-white truncate leading-tight">
                     {trackName}
                   </h4>
-                  <p className="text-[12px] text-white/60 truncate mt-0.5">
+                  <p className="text-[11px] text-white/60 truncate mt-0.5">
                     {artistNames}
                   </p>
                 </div>
@@ -873,13 +841,13 @@ const Player: React.FC = () => {
 
                 <button
                   onClick={togglePlayPause}
-                  className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-lg active:scale-95 transition-transform"
+                  className="w-9 h-9 bg-white rounded-full flex items-center justify-center shadow-lg active:scale-95 transition-transform"
                   title={isPlaying ? 'Pause' : 'Play'}
                 >
                   {isPlaying ? (
-                    <FiPause size={18} className="text-black" fill="black" />
+                    <FiPause size={16} className="text-black" fill="black" />
                   ) : (
-                    <FiPlay size={18} className="text-black ml-0.5" fill="black" />
+                    <FiPlay size={16} className="text-black ml-0.5" fill="black" />
                   )}
                 </button>
               </div>

@@ -9,10 +9,12 @@
     background-color: #121212 !important;
     color: #ffffff;
     min-height: 100vh;
-    width: 100%;
+    width: 100vw;
+    max-width: 100vw;
     margin: 0;
     padding: 0;
-    overflow-x: hidden;
+    overflow-x: hidden !important;
+    scrollbar-gutter: auto !important;
     scrollbar-width: none !important;
     -ms-overflow-style: none !important;
   }
@@ -20,6 +22,7 @@
   body {
     @apply bg-[#121212] text-spotify-white font-sans antialiased;
     background: #121212 !important;
+    overflow-x: hidden !important;
   }
 
   ::selection {
@@ -27,8 +30,9 @@
     color: #ffffff;
   }
 
-  /* Global Scrollbar Removal */
-  * {
+  /* Global Scrollbar & Gutter Removal */
+  *, *::before, *::after {
+    scrollbar-gutter: auto !important;
     scrollbar-width: none !important;
     -ms-overflow-style: none !important;
   }
@@ -37,6 +41,17 @@
     display: none !important;
     width: 0px !important;
     height: 0px !important;
+    background: transparent !important;
+  }
+
+  *::-webkit-scrollbar-track {
+    display: none !important;
+    background: transparent !important;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    display: none !important;
+    background: transparent !important;
   }
 }
 
