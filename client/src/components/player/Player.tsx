@@ -448,15 +448,6 @@ const Player: React.FC = () => {
       {isFullscreen ? (
         // Fullscreen Solid Dark Spotify Layout (No glassmorphism, clean icon-only play button, volume slider & download button)
         <div className="fixed inset-0 z-[100] bg-[#121212] flex flex-col items-center justify-center p-6 md:p-10 overflow-y-auto overflow-x-hidden pointer-events-auto">
-          {/* Top-Right Exit Fullscreen Button */}
-          <button 
-            onClick={toggleFullscreen}
-            className="absolute top-4 right-4 md:top-6 md:right-6 p-3 text-white/70 hover:text-white hover:bg-white/10 rounded-full cursor-pointer transition-all z-20"
-            title="Exit Fullscreen (ESC)"
-          >
-            <FiMinimize2 size={24} />
-          </button>
-
           <div className="relative z-10 w-full max-w-2xl flex flex-col items-center gap-6 md:gap-8 my-auto">
             {/* Album Art - Large Solid Card */}
             {albumImageUrl && (
@@ -572,7 +563,7 @@ const Player: React.FC = () => {
               {/* Progress Bar - Large */}
               <div className="space-y-2">
                 <div 
-                  ref={progressRef}
+                  ref={fullscreenProgressRef}
                   onClick={handleProgressClick}
                   onMouseDown={handleProgressMouseDown}
                   className="relative w-full h-2.5 bg-white/20 hover:h-3.5 rounded-full cursor-pointer group transition-all"
@@ -590,13 +581,13 @@ const Player: React.FC = () => {
                 </div>
               </div>
 
-              {/* Fullscreen Sliding Volume Bar */}
+              {/* Fullscreen Sliding Volume Bar + Exit Fullscreen Button */}
               <div className="flex items-center justify-center gap-3 w-full max-w-xs mx-auto pt-2">
                 <button onClick={toggleMute} className="text-spotify-lightgray hover:text-white transition-colors">
                   <VolumeIcon size={20} />
                 </button>
                 <div 
-                  ref={volumeRef}
+                  ref={fullscreenVolumeRef}
                   onClick={handleVolumeClick}
                   onMouseDown={handleVolumeMouseDown}
                   className="relative flex-1 h-1.5 bg-white/20 hover:h-2 rounded-full cursor-pointer group transition-all"
@@ -608,6 +599,14 @@ const Player: React.FC = () => {
                     <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3.5 h-3.5 bg-white rounded-full shadow opacity-0 group-hover:opacity-100 transition-opacity" />
                   </div>
                 </div>
+
+                <button 
+                  onClick={toggleFullscreen}
+                  className="p-1.5 text-spotify-lightgray hover:text-white transition-colors ml-2"
+                  title="Exit Fullscreen (ESC)"
+                >
+                  <FiMinimize2 size={20} />
+                </button>
               </div>
             </div>
           </div>
