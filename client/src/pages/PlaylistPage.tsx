@@ -15,6 +15,7 @@ import {
   FiMoreVertical
 } from 'react-icons/fi';
 import { formatDuration } from '../utils/helpers';
+import type { Playlist, Track } from '../types';
 import { TrackActionSheet } from '../components/common/TrackActionSheet';
 
 const PlaylistPage: React.FC = () => {
@@ -327,7 +328,7 @@ const PlaylistPage: React.FC = () => {
                       <div className="min-w-0 flex-1">
                         <p className="text-white font-semibold text-sm md:text-base truncate">{track.name}</p>
                         <p className="text-xs md:text-sm text-spotify-lightgray truncate mt-0.5">
-                          {track.artists.map((a) => a.name).join(', ')}
+                          {track.artists.map((a: any) => a.name).join(', ')}
                         </p>
                       </div>
                     </div>
