@@ -448,6 +448,15 @@ const Player: React.FC = () => {
       {isFullscreen ? (
         // Fullscreen Solid Dark Spotify Layout (No glassmorphism, clean icon-only play button, volume slider & download button)
         <div className="fixed inset-0 z-[100] bg-[#121212] flex flex-col items-center justify-center p-6 md:p-10 overflow-y-auto overflow-x-hidden pointer-events-auto">
+          {/* Top-Right Exit Fullscreen Button */}
+          <button 
+            onClick={toggleFullscreen}
+            className="absolute top-4 right-4 md:top-6 md:right-6 p-3 text-white/70 hover:text-white hover:bg-white/10 rounded-full cursor-pointer transition-all z-20"
+            title="Exit Fullscreen (ESC)"
+          >
+            <FiMinimize2 size={24} />
+          </button>
+
           <div className="relative z-10 w-full max-w-2xl flex flex-col items-center gap-6 md:gap-8 my-auto">
             {/* Album Art - Large Solid Card */}
             {albumImageUrl && (
@@ -581,7 +590,7 @@ const Player: React.FC = () => {
                 </div>
               </div>
 
-              {/* Fullscreen Volume Slider Bar */}
+              {/* Fullscreen Sliding Volume Bar */}
               <div className="flex items-center justify-center gap-3 w-full max-w-xs mx-auto pt-2">
                 <button onClick={toggleMute} className="text-spotify-lightgray hover:text-white transition-colors">
                   <VolumeIcon size={20} />
@@ -599,17 +608,6 @@ const Player: React.FC = () => {
                     <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3.5 h-3.5 bg-white rounded-full shadow opacity-0 group-hover:opacity-100 transition-opacity" />
                   </div>
                 </div>
-              </div>
-
-              {/* Exit Fullscreen Button */}
-              <div className="flex items-center justify-center pt-2">
-                <button 
-                  onClick={toggleFullscreen}
-                  className="px-6 py-2 rounded-full border border-white/20 hover:bg-white/10 text-white font-semibold text-xs md:text-sm transition-all flex items-center gap-2"
-                  title={isFullscreen ? 'Exit Fullscreen (ESC)' : 'Fullscreen (F)'}
-                >
-                  {isFullscreen ? <FiMinimize2 size={20} /> : <FiMaximize2 size={20} />} Exit Fullscreen
-                </button>
               </div>
             </div>
           </div>
@@ -794,8 +792,8 @@ const Player: React.FC = () => {
             </div>
           </div>
 
-          {/* MOBILE SPOTIFY FLOATING MINI-PLAYER CARD (Pill style fixed above bottom nav) */}
-          <div className="md:hidden fixed bottom-[58px] left-2 right-2 z-50 pointer-events-auto bg-[#242424]/98 backdrop-blur-xl border border-white/10 rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.8)] overflow-hidden">
+          {/* MOBILE SPOTIFY SOLID FLOATING MINI-PLAYER CARD (Solid #181818, Icon-only play button) */}
+          <div className="md:hidden fixed bottom-[58px] left-2 right-2 z-50 pointer-events-auto bg-[#181818] border border-white/10 rounded-xl shadow-2xl overflow-hidden">
             {/* Top Attached Thin Progress Line */}
             <div className="w-full h-[3px] bg-white/15 relative">
               <div 
@@ -814,10 +812,10 @@ const Player: React.FC = () => {
                   <img
                     src={albumImageUrl}
                     alt={albumName}
-                    className="w-10 h-10 rounded-xl object-cover shadow-md flex-shrink-0 border border-white/10"
+                    className="w-10 h-10 rounded-lg object-cover flex-shrink-0 border border-white/10"
                   />
                 ) : (
-                  <div className="w-10 h-10 rounded-xl bg-spotify-green/20 flex items-center justify-center flex-shrink-0">
+                  <div className="w-10 h-10 rounded-lg bg-spotify-green/20 flex items-center justify-center flex-shrink-0">
                     <FiMusic className="text-spotify-green text-base" />
                   </div>
                 )}
@@ -832,7 +830,7 @@ const Player: React.FC = () => {
                 </div>
               </div>
 
-              {/* Right: Quick Action Controls */}
+              {/* Right: Quick Action Controls (Icon-only play button, no circle) */}
               <div className="flex items-center gap-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                 <button
                   onClick={handleToggleLike}
@@ -844,13 +842,13 @@ const Player: React.FC = () => {
 
                 <button
                   onClick={togglePlayPause}
-                  className="w-9 h-9 bg-white rounded-full flex items-center justify-center shadow-lg active:scale-95 transition-transform"
+                  className="p-2 text-white hover:text-spotify-green active:scale-95 transition-transform"
                   title={isPlaying ? 'Pause' : 'Play'}
                 >
                   {isPlaying ? (
-                    <FiPause size={16} className="text-black" fill="black" />
+                    <FiPause size={22} className="text-white fill-white" />
                   ) : (
-                    <FiPlay size={16} className="text-black ml-0.5" fill="black" />
+                    <FiPlay size={22} className="text-white fill-white" />
                   )}
                 </button>
               </div>
