@@ -441,11 +441,7 @@ const Player: React.FC = () => {
   ]);
 
   if (!currentTrack) {
-    return (
-      <footer className="h-[90px] bg-[#181818] border-t border-[#282828] px-4 flex items-center">
-        <div className="text-spotify-lightgray text-sm">No track playing</div>
-      </footer>
-    );
+    return null;
   }
 
   // Safely access nested properties
