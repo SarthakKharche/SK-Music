@@ -72,31 +72,16 @@ class AudioCacheManager {
       return null;
     }
 
-    // Resolve audio source from YouTube (online only)
-    const source = await this.resolveAudioSource(track);
+    // Resolve audio source URL for online streaming via native HTML5 Audio (enables background playback & lockscreen controls on mobile)
+    const cleanTitle = (track.name || 'Song').replace(/[\(\)\[\]"'\-_]/g, ' ').replace(/\s+/g, ' ').trim();
+    const primaryArtist = track.artists?.[0]?.name?.split(',')[0]?.split('&')[0]?.trim() || '';
+    const searchQuery = encodeURIComponent(`${cleanTitle} ${primaryArtist}`.trim());
 
-    if (!source) {
-      // If we have a stored YouTube ID as fallback, use it
-      if (storedYoutubeId) {
-        console.log('Fallback: Using stored YouTube ID for:', track.name);
-        return `youtube:${storedYoutubeId}`;
-      }
-      console.warn('No audio source found for track:', track.name);
-      return null;
-    }
+    const baseUrl = api.defaults.baseURL || '/api';
+    const streamUrl = `${baseUrl}/audio/saavn-search?query=${searchQuery}&trackId=${encodeURIComponent(track.id)}`;
 
-    // Return YouTube video ID formatted for YouTube IFrame Audio Player Engine
-    if (source.youtubeId) {
-      console.log('Using YouTube source for:', track.name, source.youtubeId);
-      localStorage.setItem(`youtube_${track.id}`, source.youtubeId);
-      
-      return `youtube:${source.youtubeId}`;
-    }
-
-    // For direct audio URLs, cache in background
-    this.cacheAudio(track, source);
-
-    return source.sourceUrl;
+    console.log('[AUDIO URL] Returning native HTML5 audio stream URL for background playback:', cleanTitle);
+    return streamUrl;
   }
 
   /**

@@ -257,12 +257,6 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     });
 
     audio.addEventListener('pause', () => {
-      // Don't mark paused if pause happened due to screen lock or tab visibility change
-      if (document.hidden) {
-        console.log('[Player] Lockscreen/Visibility pause prevented, attempting auto-resume...');
-        audio.play().catch(() => {});
-        return;
-      }
       setState((prev) => ({ ...prev, isPlaying: false }));
       if (state.currentTrack) {
         updateMediaSession(state.currentTrack, false, audio.duration, audio.currentTime);
