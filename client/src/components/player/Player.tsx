@@ -574,11 +574,9 @@ const Player: React.FC = () => {
               {/* Progress Bar - Large */}
               <div className="space-y-2">
                 <div 
-                  ref={progressTrackRef}
+                  ref={progressRef}
                   onClick={handleProgressClick}
                   onMouseDown={handleProgressMouseDown}
-                  onTouchStart={handleProgressTouchStart}
-                  onTouchMove={handleProgressTouchMove}
                   className="relative w-full h-3 bg-white/20 hover:h-4 rounded-full cursor-pointer group transition-all"
                 >
                   <div 
@@ -735,11 +733,9 @@ const Player: React.FC = () => {
                   {formatDuration(localProgress * 1000)}
                 </span>
                 <div 
-                  ref={progressTrackRef}
+                  ref={progressRef}
                   onClick={handleProgressClick}
                   onMouseDown={handleProgressMouseDown}
-                  onTouchStart={handleProgressTouchStart}
-                  onTouchMove={handleProgressTouchMove}
                   className="relative flex-1 h-1 bg-[#4d4d4d] hover:h-1.5 rounded-full cursor-pointer group transition-all"
                 >
                   <div 
@@ -773,11 +769,9 @@ const Player: React.FC = () => {
                   <VolumeIcon size={16} />
                 </button>
                 <div 
-                  ref={volumeTrackRef}
+                  ref={volumeRef}
                   onClick={handleVolumeClick}
                   onMouseDown={handleVolumeMouseDown}
-                  onTouchStart={handleVolumeTouchStart}
-                  onTouchMove={handleVolumeTouchMove}
                   className="relative w-24 h-1 bg-[#4d4d4d] hover:h-1.5 rounded-full cursor-pointer group transition-all"
                 >
                   <div 
