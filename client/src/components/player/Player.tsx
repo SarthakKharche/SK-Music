@@ -827,8 +827,8 @@ const Player: React.FC = () => {
             </div>
           </div>
 
-          {/* MOBILE SPOTIFY FLOATING MINI-PLAYER CARD (Visible only on Mobile) */}
-          <div className="md:hidden fixed bottom-[68px] left-2 right-2 z-50 bg-[#242936]/95 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-[0_12px_36px_rgba(0,0,0,0.7)] overflow-hidden transition-all duration-300">
+          {/* MOBILE SPOTIFY FULL-WIDTH MINI-PLAYER BAR (Visible only on Mobile) */}
+          <div className="md:hidden fixed bottom-[52px] left-0 right-0 w-full z-50 bg-[#0d111d]/98 backdrop-blur-2xl border-t border-white/10 shadow-[0_-10px_30px_rgba(0,0,0,0.8)] overflow-hidden">
             {/* Top Attached Thin Progress Line */}
             <div className="w-full h-1 bg-white/10 relative">
               <div 

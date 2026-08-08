@@ -11,10 +11,11 @@ import {
   FiDownloadCloud, 
   FiCheck,
   FiClock,
-  FiTrash2
+  FiTrash2,
+  FiMoreVertical
 } from 'react-icons/fi';
 import { formatDuration } from '../utils/helpers';
-import type { Playlist, Track } from '../types';
+import { TrackActionSheet } from '../components/common/TrackActionSheet';
 
 const PlaylistPage: React.FC = () => {
   const { playlistId } = useParams<{ playlistId: string }>();
@@ -26,6 +27,7 @@ const PlaylistPage: React.FC = () => {
   const [cachedTracks, setCachedTracks] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [actionSheetTrack, setActionSheetTrack] = useState<Track | null>(null);
 
   useEffect(() => {
     if (playlistId) {
@@ -285,7 +287,7 @@ const PlaylistPage: React.FC = () => {
 
         <table className="w-full">
           <thead>
-            <tr className="border-b border-spotify-gray text-spotify-lightgray text-sm">
+            <tr className="border-b border-spotify-gray text-spotify-lightgray text-sm hidden md:table-row">
               <th className="text-left pb-3 w-12">#</th>
               <th className="text-left pb-3">Title</th>
               <th className="text-left pb-3">Album</th>
@@ -303,9 +305,9 @@ const PlaylistPage: React.FC = () => {
               return (
                 <tr
                   key={track.id}
-                  className="group hover:bg-spotify-gray transition-colors"
+                  className="group hover:bg-spotify-gray transition-colors flex items-center justify-between py-2 md:table-row"
                 >
-                  <td className="py-3">
+                  <td className="py-3 hidden md:table-cell">
                     <button
                       onClick={() => handlePlayTrack(track)}
                       className="text-spotify-lightgray group-hover:text-white"
@@ -313,21 +315,31 @@ const PlaylistPage: React.FC = () => {
                       {index + 1}
                     </button>
                   </td>
-                  <td className="py-3">
-                    <div>
-                      <p className="text-white font-medium">{track.name}</p>
-                      <p className="text-sm text-spotify-lightgray">
-                        {track.artists.map((a) => a.name).join(', ')}
-                      </p>
+                  <td className="py-2 md:py-3 flex-1 min-w-0" onClick={() => handlePlayTrack(track)}>
+                    <div className="flex items-center gap-3">
+                      {track.album?.imageUrl && (
+                        <img
+                          src={track.album.imageUrl}
+                          alt={track.name}
+                          className="w-12 h-12 md:hidden rounded-lg object-cover shadow flex-shrink-0"
+                        />
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="text-white font-semibold text-sm md:text-base truncate">{track.name}</p>
+                        <p className="text-xs md:text-sm text-spotify-lightgray truncate mt-0.5">
+                          {track.artists.map((a) => a.name).join(', ')}
+                        </p>
+                      </div>
                     </div>
                   </td>
-                  <td className="py-3 text-spotify-lightgray text-sm">
+                  <td className="py-3 text-spotify-lightgray text-sm hidden md:table-cell">
                     {track.album.name}
                   </td>
-                  <td className="py-3 text-center text-spotify-lightgray text-sm">
+                  <td className="py-3 text-center text-spotify-lightgray text-sm hidden md:table-cell">
                     {formatDuration(track.durationMs)}
                   </td>
-                  <td className="py-3 text-center flex items-center justify-center gap-2">
+                  {/* Desktop Action Buttons */}
+                  <td className="py-3 text-center hidden md:flex items-center justify-center gap-2">
                     <button
                       onClick={() => handleToggleOffline(track)}
                       className={`p-2 rounded-full transition-colors ${
@@ -356,11 +368,33 @@ const PlaylistPage: React.FC = () => {
                       </button>
                     )}
                   </td>
+
+                  {/* Mobile 3-Dots Options Button */}
+                  <td className="md:hidden flex items-center justify-end pl-2">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActionSheetTrack(track);
+                      }}
+                      className="p-2 text-white/70 hover:text-white rounded-full active:bg-white/10"
+                      title="Options"
+                    >
+                      <FiMoreVertical size={20} />
+                    </button>
+                  </td>
                 </tr>
               );
             })}
           </tbody>
         </table>
+
+        {/* Mobile Track Action Sheet Modal */}
+        <TrackActionSheet
+          track={actionSheetTrack}
+          isOpen={!!actionSheetTrack}
+          onClose={() => setActionSheetTrack(null)}
+          onRemoveFromPlaylist={playlistId?.startsWith('custom_') ? handleRemoveTrack : undefined}
+        />
       </div>
     </div>
   );

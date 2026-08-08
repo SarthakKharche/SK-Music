@@ -35,10 +35,10 @@ const Layout: React.FC = () => {
   const navigate = useNavigate();
 
   return (
-    <div className="relative h-screen flex flex-col overflow-hidden text-spotify-white page-surface">
+    <div className="relative h-screen w-full max-w-full flex flex-col overflow-x-hidden overflow-y-hidden text-spotify-white bg-[#05060b]">
       <div className="pointer-events-none absolute inset-0 grid-overlay opacity-10" aria-hidden />
-      <div className="pointer-events-none absolute -left-32 -top-32 w-80 h-80 rounded-full bg-spotify-green/10 blur-3xl" aria-hidden />
-      <div className="pointer-events-none absolute -right-24 top-10 w-72 h-72 rounded-full bg-cyan-400/10 blur-3xl" aria-hidden />
+      <div className="pointer-events-none absolute -left-32 -top-32 w-80 h-80 rounded-full bg-spotify-green/10 blur-3xl overflow-hidden" aria-hidden />
+      <div className="pointer-events-none absolute right-0 top-10 w-72 h-72 rounded-full bg-cyan-400/10 blur-3xl overflow-hidden" aria-hidden />
 
       {/* Offline Banner */}
       <OfflineBanner />

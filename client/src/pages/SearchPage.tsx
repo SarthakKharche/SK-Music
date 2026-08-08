@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { FiSearch, FiPlay, FiClock, FiDownload, FiCheck } from 'react-icons/fi';
+import { FiSearch, FiPlay, FiClock, FiDownload, FiCheck, FiMoreVertical } from 'react-icons/fi';
 import { usePlayer } from '../contexts/PlayerContext';
 import { useOffline } from '../contexts/OfflineContext';
 import { audioCacheManager } from '../services/audioCacheManager';
@@ -7,6 +7,7 @@ import { indexedDB } from '../services/indexedDB';
 import api from '../utils/api';
 import { formatDuration } from '../utils/helpers';
 import type { Track, Playlist } from '../types';
+import { TrackActionSheet } from '../components/common/TrackActionSheet';
 
 interface SearchTrack {
   id: string;
@@ -66,6 +67,7 @@ const SearchPage: React.FC = () => {
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [customPlaylists, setCustomPlaylists] = useState<Playlist[]>([]);
+  const [actionSheetTrack, setActionSheetTrack] = useState<Track | null>(null);
 
   const mapSearchTrackToTrack = (track: SearchTrack): Track => {
     return {
@@ -448,8 +450,8 @@ const SearchPage: React.FC = () => {
             <div>
               <h2 className="text-2xl font-bold text-white mb-4">All results</h2>
               
-              {/* Table Header */}
-              <div className="grid grid-cols-[48px_1fr_1fr_80px_48px_110px] gap-4 px-4 py-2 text-spotify-lightgray text-sm border-b border-spotify-lightgray/20 sticky top-20 bg-spotify-black">
+              {/* Table Header (Hidden on Mobile) */}
+              <div className="hidden md:grid grid-cols-[48px_1fr_1fr_80px_48px_110px] gap-4 px-4 py-2 text-spotify-lightgray text-sm border-b border-spotify-lightgray/20 sticky top-20 bg-spotify-black z-10">
                 <div>#</div>
                 <div>Title</div>
                 <div>Album</div>
@@ -462,31 +464,32 @@ const SearchPage: React.FC = () => {
               <div className="space-y-1 mt-2">
                 {results.slice(4).map((track, index) => {
                   const isCurrentTrack = currentTrack?.id === track.id;
+                  const mappedTrack = mapSearchTrackToTrack(track);
 
                   return (
                     <div
                       key={`${track.id}-full-${index}`}
                       onClick={() => handlePlayTrack(track)}
-                      className={`grid grid-cols-[48px_1fr_1fr_80px_48px_110px] gap-4 px-4 py-2 rounded-md group cursor-pointer transition-colors hover:bg-spotify-gray`}
+                      className="flex items-center justify-between md:grid md:grid-cols-[48px_1fr_1fr_80px_48px_110px] gap-3 px-3 py-2.5 rounded-xl group cursor-pointer transition-colors hover:bg-white/10"
                     >
-                      {/* Index / Play Button */}
-                      <div className="flex items-center justify-center">
+                      {/* Index / Play Button (Desktop only) */}
+                      <div className="hidden md:flex items-center justify-center">
                         <span className="group-hover:hidden text-spotify-lightgray">{index + 5}</span>
                         <FiPlay className="hidden group-hover:block text-white" size={14} />
                       </div>
 
                       {/* Track Info */}
-                      <div className="flex items-center gap-3 min-w-0">
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
                         <img
                           src={track.album.imageUrl || '/placeholder-album.png'}
                           alt={track.album.name}
-                          className="w-10 h-10 rounded shadow"
+                          className="w-12 h-12 md:w-10 md:h-10 rounded-lg object-cover shadow flex-shrink-0"
                         />
-                        <div className="min-w-0">
-                          <p className={`font-medium truncate ${isCurrentTrack ? 'text-spotify-green' : 'text-white'}`}>
+                        <div className="min-w-0 flex-1">
+                          <p className={`font-semibold text-sm md:text-base truncate ${isCurrentTrack ? 'text-spotify-green' : 'text-white'}`}>
                             {track.name}
                           </p>
-                          <p className="text-sm text-spotify-lightgray truncate">
+                          <p className="text-xs md:text-sm text-spotify-lightgray truncate mt-0.5">
                             {track.explicit && (
                               <span className="inline-flex items-center justify-center w-4 h-4 bg-spotify-lightgray/30 text-spotify-lightgray text-[10px] rounded mr-1">E</span>
                             )}
@@ -495,18 +498,18 @@ const SearchPage: React.FC = () => {
                         </div>
                       </div>
 
-                      {/* Album */}
-                      <div className="flex items-center text-spotify-lightgray text-sm truncate hover:underline">
+                      {/* Album (Desktop only) */}
+                      <div className="hidden md:flex items-center text-spotify-lightgray text-sm truncate hover:underline">
                         {track.album.name}
                       </div>
 
-                      {/* Duration */}
-                      <div className="flex items-center justify-end text-spotify-lightgray text-sm">
+                      {/* Duration (Desktop only) */}
+                      <div className="hidden md:flex items-center justify-end text-spotify-lightgray text-sm">
                         {formatDuration(track.durationMs)}
                       </div>
 
-                      {/* Download Button */}
-                      <div className="flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+                      {/* Download Button (Desktop only) */}
+                      <div className="hidden md:flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
                         {(() => {
                           const isCached = cachedTracks.has(track.id);
                           const status = syncStatus.get(track.id);
@@ -533,8 +536,8 @@ const SearchPage: React.FC = () => {
                         })()}
                       </div>
 
-                      {/* Playlist Select Dropdown */}
-                      <div className="flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+                      {/* Playlist Select Dropdown (Desktop only) */}
+                      <div className="hidden md:flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
                         <select
                           onChange={async (e) => {
                             const playlistId = e.target.value;
@@ -560,12 +563,30 @@ const SearchPage: React.FC = () => {
                           ))}
                         </select>
                       </div>
+
+                      {/* Mobile 3-Dots Options Button (Visible on Mobile) */}
+                      <div className="md:hidden flex items-center justify-end" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          onClick={() => setActionSheetTrack(mappedTrack)}
+                          className="p-2 text-white/70 hover:text-white rounded-full active:bg-white/10"
+                          title="Options"
+                        >
+                          <FiMoreVertical size={20} />
+                        </button>
+                      </div>
                     </div>
                   );
                 })}
               </div>
             </div>
           )}
+
+          {/* Render Mobile Track Action Sheet Modal */}
+          <TrackActionSheet
+            track={actionSheetTrack}
+            isOpen={!!actionSheetTrack}
+            onClose={() => setActionSheetTrack(null)}
+          />
 
           {/* Load More */}
           {hasMore && (
