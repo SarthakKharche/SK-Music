@@ -105,6 +105,7 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const timeUpdateIntervalRef = useRef<number | null>(null);
   const lastPauseTimeRef = useRef<number>(0);
   const lastNonZeroVolumeRef = useRef<number>(state.volume > 0 ? state.volume : 0.7);
+  const playedHistoryRef = useRef<Set<string>>(new Set());
 
   /**
    * Track listening progress for Made-For-You recommendations.
@@ -303,7 +304,8 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       trackingRef.current = { trackId: track.id, startTime: Date.now(), reported: false };
       reportListeningEvent(track, 'play', 0);
 
-      // Add to listening history
+      // Add to session listening history & IndexedDB
+      playedHistoryRef.current.add(track.id);
       indexedDB.addToHistory(track).catch(console.error);
 
       // Get audio URL (cache-first)
@@ -639,9 +641,9 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       if (repeat === 'all') {
         nextIndex = 0;
       } else if (autoplay && currentTrack) {
-        // Autoplay Mode: Fetch similar recommended songs automatically
+        // Autoplay Mode: Fetch non-repeating similar recommended songs automatically
         try {
-          console.log('[AUTOPLAY] Reached end of queue. Fetching recommended tracks for:', currentTrack.name);
+          console.log('[AUTOPLAY] Queue ended. Fetching non-repeating recommendations for:', currentTrack.name);
           const cleanName = encodeURIComponent(currentTrack.name || '');
           const cleanArtist = encodeURIComponent(currentTrack.artists?.[0]?.name || '');
           
@@ -653,36 +655,11 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             const fetched = res.data?.tracks || [];
             if (fetched.length > 0) {
               const existingIds = new Set(queue.map((t: Track) => t.id));
-              newTracks = fetched.filter((t: Track) => !existingIds.has(t.id));
+              newTracks = fetched.filter((t: Track) => t.id !== currentTrack.id && !existingIds.has(t.id) && !playedHistoryRef.current.has(t.id));
             }
           } catch {}
 
-          // Try 2: JioSaavn Direct Artist Search fallback if Try 1 failed
-          if (newTracks.length === 0 && navigator.onLine) {
-            try {
-              const artistQuery = encodeURIComponent(`${currentTrack.artists?.[0]?.name || 'Hindi'} top hits`);
-              const searchRes = await api.get(`/audio/saavn-search?query=${artistQuery}&format=json`);
-              if (searchRes.data?.url) {
-                // Return artist fallback track
-                const fallbackTrack: Track = {
-                  id: `yt-fallback-${Date.now()}`,
-                  name: `${currentTrack.artists?.[0]?.name || 'Top'} Hit Radio`,
-                  artists: currentTrack.artists || [{ id: 'a1', name: 'Various Artists' }],
-                  album: currentTrack.album || { id: 'alb1', name: 'Autoplay Radio', imageUrl: '/placeholder-album.png' },
-                  durationMs: 180000,
-                  spotifyUrl: '',
-                  playlistId: '',
-                  userId: '',
-                  explicit: false,
-                  isOfflinePreferred: false,
-                  addedAt: new Date().toISOString(),
-                };
-                newTracks = [fallbackTrack];
-              }
-            } catch {}
-          }
-
-          // Try 3: Default Popular Songs Fallback
+          // Try 2: Curated 10-Song Popular Pool (Filter played songs)
           if (newTracks.length === 0) {
             const defaultPopular: Track[] = [
               {
@@ -724,9 +701,85 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
                 isOfflinePreferred: false,
                 addedAt: new Date().toISOString(),
               },
+              {
+                id: 'yt-We_Dont_Talk_Anymore',
+                name: "We Don't Talk Anymore (feat. Selena Gomez)",
+                artists: [{ id: 'a4', name: 'Charlie Puth' }],
+                album: { id: 'alb4', name: 'Nine Track Mind', imageUrl: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=300' },
+                durationMs: 217000,
+                spotifyUrl: '',
+                playlistId: '',
+                userId: '',
+                explicit: false,
+                isOfflinePreferred: false,
+                addedAt: new Date().toISOString(),
+              },
+              {
+                id: 'yt-Let_Me_Love_You',
+                name: 'Let Me Love You (feat. Justin Bieber)',
+                artists: [{ id: 'a5', name: 'DJ Snake' }],
+                album: { id: 'alb5', name: 'Encore', imageUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300' },
+                durationMs: 205000,
+                spotifyUrl: '',
+                playlistId: '',
+                userId: '',
+                explicit: false,
+                isOfflinePreferred: false,
+                addedAt: new Date().toISOString(),
+              },
+              {
+                id: 'yt-Perfect',
+                name: 'Perfect',
+                artists: [{ id: 'a6', name: 'Ed Sheeran' }],
+                album: { id: 'alb6', name: '÷ (Deluxe)', imageUrl: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=300' },
+                durationMs: 263000,
+                spotifyUrl: '',
+                playlistId: '',
+                userId: '',
+                explicit: false,
+                isOfflinePreferred: false,
+                addedAt: new Date().toISOString(),
+              },
+              {
+                id: 'yt-Udi_Udi',
+                name: 'Udi Udi',
+                artists: [{ id: 'a7', name: 'Aneesh, Sarkar & Hruday' }],
+                album: { id: 'alb7', name: 'Udi Udi', imageUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300' },
+                durationMs: 200000,
+                spotifyUrl: '',
+                playlistId: '',
+                userId: '',
+                explicit: false,
+                isOfflinePreferred: false,
+                addedAt: new Date().toISOString(),
+              },
+              {
+                id: 'yt-Let_Her_Go',
+                name: 'Let Her Go',
+                artists: [{ id: 'a8', name: 'Passenger' }],
+                album: { id: 'alb8', name: 'All The Little Lights', imageUrl: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=300' },
+                durationMs: 252000,
+                spotifyUrl: '',
+                playlistId: '',
+                userId: '',
+                explicit: false,
+                isOfflinePreferred: false,
+                addedAt: new Date().toISOString(),
+              },
             ];
+
             const existingIds = new Set(queue.map((t: Track) => t.id));
-            newTracks = defaultPopular.filter((t: Track) => t.id !== currentTrack.id && !existingIds.has(t.id));
+            let unplayed = defaultPopular.filter((t: Track) => t.id !== currentTrack.id && !existingIds.has(t.id) && !playedHistoryRef.current.has(t.id));
+            
+            // If all popular songs have been played in session, reset history except current track
+            if (unplayed.length === 0) {
+              console.log('[AUTOPLAY] All fallback pool songs played. Resetting played history...');
+              playedHistoryRef.current.clear();
+              playedHistoryRef.current.add(currentTrack.id);
+              unplayed = defaultPopular.filter((t: Track) => t.id !== currentTrack.id);
+            }
+
+            newTracks = unplayed;
           }
 
           if (newTracks.length > 0) {
