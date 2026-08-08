@@ -35,16 +35,12 @@ const Layout: React.FC = () => {
   const navigate = useNavigate();
 
   return (
-    <div className="relative h-screen w-full max-w-full flex flex-col overflow-x-hidden overflow-y-hidden text-spotify-white bg-[#05060b]">
-      <div className="pointer-events-none absolute inset-0 grid-overlay opacity-10" aria-hidden />
-      <div className="pointer-events-none absolute -left-32 -top-32 w-80 h-80 rounded-full bg-spotify-green/10 blur-3xl overflow-hidden" aria-hidden />
-      <div className="pointer-events-none absolute right-0 top-10 w-72 h-72 rounded-full bg-cyan-400/10 blur-3xl overflow-hidden" aria-hidden />
-
+    <div className="relative h-screen w-full max-w-full flex flex-col overflow-x-hidden overflow-y-hidden text-spotify-white bg-[#121212]">
       {/* Offline Banner */}
       <OfflineBanner />
 
       {/* Mobile Top Header with User Profile Photo -> Settings */}
-      <div className="md:hidden flex items-center justify-between px-4 py-2.5 bg-[#0b1020]/90 border-b border-white/10 backdrop-blur-xl z-30">
+      <div className="md:hidden flex items-center justify-between px-4 py-2.5 bg-[#121212] border-b border-white/10 z-30">
         <button
           onClick={() => navigate('/settings')}
           className="flex items-center gap-2 p-1 rounded-full hover:bg-white/10 active:scale-95 transition-all"
@@ -74,14 +70,13 @@ const Layout: React.FC = () => {
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex overflow-hidden backdrop-blur-[1px] relative pb-16 md:pb-0">
+      <div className="flex-1 flex overflow-hidden relative pb-16 md:pb-0">
         {/* Desktop & Mobile Responsive Sidebar Drawer */}
         <Sidebar />
 
         {/* Content Area */}
-        <main className="flex-1 overflow-y-auto relative">
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/5 via-transparent to-transparent opacity-30" aria-hidden />
-          <div className="relative">
+        <main className="flex-1 overflow-y-auto relative bg-[#121212]">
+          <div className="relative w-full h-full">
             <Outlet />
           </div>
         </main>
@@ -93,7 +88,7 @@ const Layout: React.FC = () => {
       </PlayerErrorBoundary>
 
       {/* SPOTIFY MOBILE BOTTOM NAVIGATION BAR */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#070a12]/95 backdrop-blur-2xl border-t border-white/10 px-2 py-1.5 flex items-center justify-around">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#121212]/95 backdrop-blur-2xl border-t border-white/10 px-2 py-1.5 flex items-center justify-around">
         <NavLink
           to="/"
           className={({ isActive }) =>

@@ -284,9 +284,9 @@ const SearchPage: React.FC = () => {
   };
 
   return (
-    <div className="p-6 pb-32">
+    <div className="px-4 md:px-8 py-4 md:py-6 pb-32 w-full min-h-screen bg-[#121212]">
       {/* Search Bar - Spotify Style */}
-      <form onSubmit={handleSearch} className="mb-8 sticky top-0 z-10 pt-2 pb-4 bg-gradient-to-b from-spotify-black via-spotify-black to-transparent">
+      <form onSubmit={handleSearch} className="mb-8 sticky top-0 z-10 pt-2 pb-4 bg-gradient-to-b from-[#121212] via-[#121212] to-transparent">
         <div className="relative max-w-md">
           <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-spotify-black text-lg" />
           <input
@@ -372,9 +372,10 @@ const SearchPage: React.FC = () => {
             {/* Songs */}
             <div>
               <h2 className="text-2xl font-bold text-white mb-4">Songs</h2>
-              <div className="bg-transparent">
+              <div className="bg-transparent space-y-1">
                 {results.slice(0, 4).map((track, index) => {
                   const isCurrentTrack = currentTrack?.id === track.id;
+                  const mappedTrack = mapSearchTrackToTrack(track);
                   
                   return (
                     <div
@@ -407,8 +408,8 @@ const SearchPage: React.FC = () => {
                         </p>
                       </div>
 
-                      {/* Duration & Download */}
-                      <div className="flex items-center gap-2">
+                      {/* Desktop Controls */}
+                      <div className="hidden md:flex items-center gap-2">
                         <span className="text-spotify-lightgray text-sm mr-2">
                           {formatDuration(track.durationMs)}
                         </span>
@@ -437,6 +438,16 @@ const SearchPage: React.FC = () => {
                             </button>
                           );
                         })()}
+                      </div>
+
+                      {/* Mobile 3-Dots Button */}
+                      <div className="md:hidden flex items-center" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          onClick={() => setActionSheetTrack(mappedTrack)}
+                          className="p-2 text-white/70 hover:text-white rounded-full active:bg-white/10"
+                        >
+                          <FiMoreVertical size={20} />
+                        </button>
                       </div>
                     </div>
                   );
