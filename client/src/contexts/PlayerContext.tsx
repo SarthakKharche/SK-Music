@@ -744,20 +744,15 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             }
           } catch {}
 
-          // Try 2: Multi-Query Dynamic Search (Related Artists, Genres, Similar Hits)
+          // Try 2: Multi-Query Dynamic Search matching the song & artist context
           if (newTracks.length === 0) {
-            const isEnglish = /[a-zA-Z]/.test(cleanName) && !/[\u0900-\u097F]/.test(cleanName);
-            
             const searchQueries = [
               primaryArtist ? `${primaryArtist}` : '',
-              primaryArtist && secondaryArtist ? `${secondaryArtist}` : '',
+              primaryArtist ? `${primaryArtist} top hits` : '',
+              cleanName && primaryArtist ? `${cleanName} ${primaryArtist}` : '',
+              cleanName ? `${cleanName} radio` : '',
+              secondaryArtist ? `${secondaryArtist}` : '',
               primaryArtist ? `similar to ${primaryArtist}` : '',
-              isEnglish ? 'Shawn Mendes hits' : 'Arijit Singh hits',
-              isEnglish ? 'Ed Sheeran hits' : 'Shreya Ghoshal hits',
-              isEnglish ? 'Dua Lipa hits' : 'Atif Aslam hits',
-              isEnglish ? 'The Weeknd hits' : 'Jubin Nautiyal hits',
-              isEnglish ? 'Taylor Swift hits' : 'Pritam hits',
-              isEnglish ? 'top global pop charts' : 'top bollywood hits',
             ].filter(Boolean);
 
             for (const q of searchQueries) {

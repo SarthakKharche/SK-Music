@@ -45,34 +45,44 @@ router.get('/recommendations', async (req: Request, res: Response) => {
 
     console.log(`[AUTOPLAY RADIO] Generating Spotify/YT Music radio queue for: "${cleanTitle}" by "${primaryArtist}"`);
 
-    // Determine related artists
-    let relatedArtists = RELATED_ARTIST_MAP[primaryArtistKey] || [];
-    const isEnglish = /[a-zA-Z]/.test(cleanTitle || primaryArtist) && !/[\u0900-\u097F]/.test(cleanTitle || primaryArtist);
-
-    if (relatedArtists.length === 0) {
-      relatedArtists = isEnglish ? DEFAULT_ENGLISH_RADIO : DEFAULT_HINDI_RADIO;
-    }
-
-    // Pick 4-6 distinct target artists to query
-    const targetArtists = Array.from(new Set([
-      primaryArtist,
-      ...artistList,
-      ...relatedArtists.sort(() => Math.random() - 0.5).slice(0, 5)
-    ])).filter(Boolean);
-
     let candidateTracks: any[] = [];
     const seenTitles = new Set<string>();
 
     const normalize = (str: string) => (str || '').toLowerCase().replace(/[\(\)\[\]"'\-_feat\.]/g, '').replace(/\s+/g, ' ').trim();
     if (cleanTitle) seenTitles.add(normalize(cleanTitle));
 
-    for (const artist of targetArtists) {
+    // Dynamic queries matching the specific song, artist, and genre context
+    const searchQueries: string[] = [];
+    if (primaryArtist) {
+      searchQueries.push(primaryArtist); // Primary artist top hits
+      searchQueries.push(`${primaryArtist} top songs`);
+    }
+    if (cleanTitle && primaryArtist) {
+      searchQueries.push(`${cleanTitle} ${primaryArtist}`);
+      searchQueries.push(`${cleanTitle} radio`);
+    }
+    if (secondaryArtist) {
+      searchQueries.push(secondaryArtist);
+    }
+    if (primaryArtist) {
+      searchQueries.push(`similar to ${primaryArtist}`);
+    }
+
+    // Determine mapped related artists if available
+    const mappedRelated = RELATED_ARTIST_MAP[primaryArtistKey] || [];
+    if (mappedRelated.length > 0) {
+      const shuffledMapped = [...mappedRelated].sort(() => Math.random() - 0.5).slice(0, 4);
+      searchQueries.push(...shuffledMapped);
+    }
+
+    for (const query of searchQueries) {
       try {
-        const searchUrl = `https://jiosaavn-api-private.vercel.app/search/songs?q=${encodeURIComponent(artist)}`;
+        const searchUrl = `https://jiosaavn-api-private.vercel.app/search/songs?q=${encodeURIComponent(query)}`;
         const searchRes = await axios.get(searchUrl, { timeout: 4000 });
         const results = searchRes.data?.data?.results || searchRes.data?.results || [];
 
         if (Array.isArray(results) && results.length > 0) {
+          // Shuffle results for variety
           const shuffled = [...results].sort(() => Math.random() - 0.5);
 
           for (const item of shuffled) {
@@ -90,7 +100,7 @@ router.get('/recommendations', async (req: Request, res: Response) => {
 
             const itemArtists = typeof item.primaryArtists === 'string'
               ? item.primaryArtists
-              : (Array.isArray(item.primaryArtists) ? item.primaryArtists.map((a: any) => a.name).join(', ') : (item.subtitle || artist));
+              : (Array.isArray(item.primaryArtists) ? item.primaryArtists.map((a: any) => a.name).join(', ') : (item.subtitle || primaryArtist));
 
             candidateTracks.push({
               id: item.id.startsWith('yt-') ? item.id : `yt-${item.id}`,
@@ -114,13 +124,13 @@ router.get('/recommendations', async (req: Request, res: Response) => {
           }
         }
       } catch (err) {
-        console.warn(`[AUTOPLAY RADIO] Query failed for artist: ${artist}`, err);
+        console.warn(`[AUTOPLAY RADIO] Query failed for: ${query}`, err);
       }
 
       if (candidateTracks.length >= 25) break;
     }
 
-    console.log(`[AUTOPLAY RADIO] Generated ${candidateTracks.length} diverse radio tracks for "${cleanTitle}"`);
+    console.log(`[AUTOPLAY RADIO] Generated ${candidateTracks.length} contextual radio tracks for "${cleanTitle}"`);
     return res.json({ tracks: candidateTracks });
   } catch (error) {
     console.error('[AUTOPLAY RADIO] Error generating radio:', error);
