@@ -203,7 +203,7 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     togglePlayPause: () => {},
     next: () => {},
     previous: () => {},
-    seek: (time: number) => {},
+    seek: (_time: number) => {},
   });
 
   /**
