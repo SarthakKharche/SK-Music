@@ -198,9 +198,14 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
   }, [isYouTube]);
 
-  /**
-   * Update OS Media Session (Lock Screen & Background Player Notification)
-   */
+  // Action handlers ref to avoid stale closures in MediaSession action listeners
+  const actionHandlersRef = useRef({
+    togglePlayPause: () => {},
+    next: () => {},
+    previous: () => {},
+    seek: (time: number) => {},
+  });
+
   /**
    * Update OS Media Session (Lock Screen & Background Player Notification)
    */
@@ -212,7 +217,7 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       
       navigator.mediaSession.metadata = new MediaMetadata({
         title: track.name || 'SK Music',
-        artist: track.artists ? track.artists.map((a) => a.name).join(', ') : 'SK Music',
+        artist: track.artists && track.artists.length > 0 ? track.artists.map((a) => a.name).join(', ') : 'SK Music',
         album: track.album?.name || 'SK Music',
         artwork: coverUrl ? [
           { src: coverUrl, sizes: '96x96', type: 'image/jpeg' },
@@ -224,9 +229,8 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         ] : [],
       });
 
-      if (isPlaying) {
-        navigator.mediaSession.playbackState = 'playing';
-      }
+      // Synchronize OS playback state cleanly
+      navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
 
       if (durationSec > 0 && 'setPositionState' in navigator.mediaSession) {
         try {
@@ -250,6 +254,41 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       updateMediaSession(state.currentTrack, state.isPlaying, state.duration, state.currentTime);
     }
   }, [state.currentTrack, state.isPlaying]);
+
+  /**
+   * Register persistent MediaSession Action Handlers for OS Lockscreen, Android Notification & Bluetooth
+   */
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
+
+    const actionMap: [MediaSessionAction, MediaSessionActionHandler][] = [
+      ['play', () => actionHandlersRef.current.togglePlayPause()],
+      ['pause', () => actionHandlersRef.current.togglePlayPause()],
+      ['previoustrack', () => actionHandlersRef.current.previous()],
+      ['nexttrack', () => actionHandlersRef.current.next()],
+      ['seekto', (details) => {
+        if (details.seekTime !== undefined && details.seekTime !== null) {
+          actionHandlersRef.current.seek(details.seekTime);
+        }
+      }],
+      ['seekbackward', (details) => {
+        const skip = details.seekOffset || 10;
+        actionHandlersRef.current.seek(Math.max(0, stateRef.current.currentTime - skip));
+      }],
+      ['seekforward', (details) => {
+        const skip = details.seekOffset || 10;
+        actionHandlersRef.current.seek(Math.min(stateRef.current.duration, stateRef.current.currentTime + skip));
+      }],
+    ];
+
+    for (const [action, handler] of actionMap) {
+      try {
+        navigator.mediaSession.setActionHandler(action, handler);
+      } catch (e) {
+        // Action not supported in browser environment
+      }
+    }
+  }, []);
 
   /**
    * Initialize audio element with background & lockscreen playback permissions
@@ -946,40 +985,10 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }));
   };
 
-  /**
-   * Register OS Media Session action handlers for mobile background playback & lockscreen controls
-   */
+  // Keep action handlers updated with latest player functions
   useEffect(() => {
-    if (typeof navigator !== 'undefined' && 'mediaSession' in navigator) {
-      try {
-        navigator.mediaSession.setActionHandler('play', () => {
-          if (isYouTube && youtubePlayerRef.current && typeof youtubePlayerRef.current.playVideo === 'function') {
-            youtubePlayerRef.current.playVideo();
-          } else {
-            audioRef.current?.play();
-          }
-          setState((prev) => ({ ...prev, isPlaying: true }));
-        });
-
-        navigator.mediaSession.setActionHandler('pause', () => {
-          if (isYouTube && youtubePlayerRef.current && typeof youtubePlayerRef.current.pauseVideo === 'function') {
-            youtubePlayerRef.current.pauseVideo();
-          } else {
-            audioRef.current?.pause();
-          }
-          setState((prev) => ({ ...prev, isPlaying: false }));
-        });
-
-        navigator.mediaSession.setActionHandler('previoustrack', () => previous());
-        navigator.mediaSession.setActionHandler('nexttrack', () => next());
-        navigator.mediaSession.setActionHandler('seekto', (details) => {
-          if (details.seekTime !== undefined) seek(details.seekTime);
-        });
-      } catch (e) {
-        console.warn('MediaSession handler registration failed:', e);
-      }
-    }
-  }, [state.currentTrack, state.isPlaying, isYouTube]);
+    actionHandlersRef.current = { togglePlayPause, next, previous, seek };
+  }, [togglePlayPause, next, previous, seek]);
 
   const value: PlayerContextType = {
     ...state,
