@@ -198,14 +198,6 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
   }, [isYouTube]);
 
-  // Action handlers ref to avoid stale closures in MediaSession action listeners
-  const actionHandlersRef = useRef({
-    togglePlayPause: () => {},
-    next: () => {},
-    previous: () => {},
-    seek: (_time: number) => {},
-  });
-
   /**
    * Update OS Media Session (Lock Screen & Background Player Notification)
    */
@@ -216,20 +208,12 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       const coverUrl = (track.album as any)?.imageUrl || (track.album as any)?.images?.[0]?.url || '';
       
       navigator.mediaSession.metadata = new MediaMetadata({
-        title: track.name || 'SK Music',
-        artist: track.artists && track.artists.length > 0 ? track.artists.map((a) => a.name).join(', ') : 'SK Music',
+        title: track.name,
+        artist: track.artists ? track.artists.map((a) => a.name).join(', ') : 'SK Music',
         album: track.album?.name || 'SK Music',
-        artwork: coverUrl ? [
-          { src: coverUrl, sizes: '96x96', type: 'image/jpeg' },
-          { src: coverUrl, sizes: '128x128', type: 'image/jpeg' },
-          { src: coverUrl, sizes: '192x192', type: 'image/jpeg' },
-          { src: coverUrl, sizes: '256x256', type: 'image/jpeg' },
-          { src: coverUrl, sizes: '384x384', type: 'image/jpeg' },
-          { src: coverUrl, sizes: '512x512', type: 'image/jpeg' },
-        ] : [],
+        artwork: coverUrl ? [{ src: coverUrl, sizes: '300x300', type: 'image/jpeg' }] : [],
       });
 
-      // Synchronize OS playback state cleanly
       navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
 
       if (durationSec > 0 && 'setPositionState' in navigator.mediaSession) {
@@ -254,41 +238,6 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       updateMediaSession(state.currentTrack, state.isPlaying, state.duration, state.currentTime);
     }
   }, [state.currentTrack, state.isPlaying]);
-
-  /**
-   * Register persistent MediaSession Action Handlers for OS Lockscreen, Android Notification & Bluetooth
-   */
-  useEffect(() => {
-    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
-
-    const actionMap: [MediaSessionAction, MediaSessionActionHandler][] = [
-      ['play', () => actionHandlersRef.current.togglePlayPause()],
-      ['pause', () => actionHandlersRef.current.togglePlayPause()],
-      ['previoustrack', () => actionHandlersRef.current.previous()],
-      ['nexttrack', () => actionHandlersRef.current.next()],
-      ['seekto', (details) => {
-        if (details.seekTime !== undefined && details.seekTime !== null) {
-          actionHandlersRef.current.seek(details.seekTime);
-        }
-      }],
-      ['seekbackward', (details) => {
-        const skip = details.seekOffset || 10;
-        actionHandlersRef.current.seek(Math.max(0, stateRef.current.currentTime - skip));
-      }],
-      ['seekforward', (details) => {
-        const skip = details.seekOffset || 10;
-        actionHandlersRef.current.seek(Math.min(stateRef.current.duration, stateRef.current.currentTime + skip));
-      }],
-    ];
-
-    for (const [action, handler] of actionMap) {
-      try {
-        navigator.mediaSession.setActionHandler(action, handler);
-      } catch (e) {
-        // Action not supported in browser environment
-      }
-    }
-  }, []);
 
   /**
    * Initialize audio element with background & lockscreen playback permissions
@@ -316,18 +265,15 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
     audio.addEventListener('play', () => {
       setState((prev) => ({ ...prev, isPlaying: true }));
-      const curTrack = stateRef.current.currentTrack;
-      if (curTrack) {
-        updateMediaSession(curTrack, true, audio.duration, audio.currentTime);
+      if (state.currentTrack) {
+        updateMediaSession(state.currentTrack, true, audio.duration, audio.currentTime);
       }
     });
 
     audio.addEventListener('pause', () => {
-      if (audio.ended) return;
       setState((prev) => ({ ...prev, isPlaying: false }));
-      const curTrack = stateRef.current.currentTrack;
-      if (curTrack) {
-        updateMediaSession(curTrack, false, audio.duration, audio.currentTime);
+      if (state.currentTrack) {
+        updateMediaSession(state.currentTrack, false, audio.duration, audio.currentTime);
       }
     });
 
@@ -354,9 +300,6 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     if (!audio) return;
 
     try {
-      // Immediately update OS MediaSession metadata (Lockscreen / Notification) for instant visual feedback
-      updateMediaSession(track, true);
-
       // Finalise tracking for the previous track before switching
       finaliseTracking();
 
@@ -719,10 +662,7 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           const cleanName = (currentTrack.name || '').replace(/[\(\)\[\]"'\-_]/g, ' ').replace(/\s+/g, ' ').trim();
           const currentNormTitle = normalizeTitle(currentTrack.name || '');
 
-          const rawAlbumName = currentTrack.album?.name || '';
-          const cleanAlbumName = rawAlbumName.replace(/[\(\)\[\]"'\-_]/g, ' ').replace(/\s+/g, ' ').trim();
-
-          console.log(`[AUTOPLAY] Queue ended. Fetching recommendations for: "${cleanName}" | Album: "${cleanAlbumName}" | Artist: "${primaryArtist}"`);
+          console.log(`[AUTOPLAY] Queue ended. Fetching diverse recommendations for: "${cleanName}" by "${primaryArtist}"`);
           
           let newTracks: Track[] = [];
 
@@ -736,24 +676,31 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             return false;
           };
 
-          // Try 1: Express Radio Recommendations API (with albumName)
+          // Try 1: Express Radio Recommendations API
           try {
-            const res = await api.get(`/radio/recommendations?trackId=${currentTrack.id}&trackName=${encodeURIComponent(cleanName)}&artistName=${encodeURIComponent(primaryArtist)}&albumName=${encodeURIComponent(cleanAlbumName)}`);
+            const res = await api.get(`/radio/recommendations?trackId=${currentTrack.id}&trackName=${encodeURIComponent(cleanName)}&artistName=${encodeURIComponent(primaryArtist)}`);
             const fetched: Track[] = res.data?.tracks || [];
             if (fetched.length > 0) {
-              newTracks = fetched.filter((t: Track) => !isSongAlreadyPlayed(t.id, t.name));
+              // Shuffle fetched candidates for variety
+              const shuffled = [...fetched].sort(() => Math.random() - 0.5);
+              newTracks = shuffled.filter((t: Track) => !isSongAlreadyPlayed(t.id, t.name));
             }
           } catch {}
 
-          // Try 2: Multi-Query Dynamic Search (Album/Movie Soundtrack -> Artist -> Similar)
+          // Try 2: Multi-Query Dynamic Search (Related Artists, Genres, Similar Hits)
           if (newTracks.length === 0) {
+            const isEnglish = /[a-zA-Z]/.test(cleanName) && !/[\u0900-\u097F]/.test(cleanName);
+            
             const searchQueries = [
-              cleanAlbumName ? `${cleanAlbumName} ${primaryArtist}` : '',
-              cleanAlbumName ? cleanAlbumName : '',
-              primaryArtist ? `${primaryArtist} top hits` : '',
               primaryArtist ? `${primaryArtist}` : '',
-              cleanName ? `${cleanName} radio` : '',
-              secondaryArtist ? `${secondaryArtist}` : '',
+              primaryArtist && secondaryArtist ? `${secondaryArtist}` : '',
+              primaryArtist ? `similar to ${primaryArtist}` : '',
+              isEnglish ? 'Shawn Mendes hits' : 'Arijit Singh hits',
+              isEnglish ? 'Ed Sheeran hits' : 'Shreya Ghoshal hits',
+              isEnglish ? 'Dua Lipa hits' : 'Atif Aslam hits',
+              isEnglish ? 'The Weeknd hits' : 'Jubin Nautiyal hits',
+              isEnglish ? 'Taylor Swift hits' : 'Pritam hits',
+              isEnglish ? 'top global pop charts' : 'top bollywood hits',
             ].filter(Boolean);
 
             for (const q of searchQueries) {
@@ -981,10 +928,40 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }));
   };
 
-  // Keep action handlers updated with latest player functions
+  /**
+   * Register OS Media Session action handlers for mobile background playback & lockscreen controls
+   */
   useEffect(() => {
-    actionHandlersRef.current = { togglePlayPause, next, previous, seek };
-  }, [togglePlayPause, next, previous, seek]);
+    if (typeof navigator !== 'undefined' && 'mediaSession' in navigator) {
+      try {
+        navigator.mediaSession.setActionHandler('play', () => {
+          if (isYouTube && youtubePlayerRef.current && typeof youtubePlayerRef.current.playVideo === 'function') {
+            youtubePlayerRef.current.playVideo();
+          } else {
+            audioRef.current?.play();
+          }
+          setState((prev) => ({ ...prev, isPlaying: true }));
+        });
+
+        navigator.mediaSession.setActionHandler('pause', () => {
+          if (isYouTube && youtubePlayerRef.current && typeof youtubePlayerRef.current.pauseVideo === 'function') {
+            youtubePlayerRef.current.pauseVideo();
+          } else {
+            audioRef.current?.pause();
+          }
+          setState((prev) => ({ ...prev, isPlaying: false }));
+        });
+
+        navigator.mediaSession.setActionHandler('previoustrack', () => previous());
+        navigator.mediaSession.setActionHandler('nexttrack', () => next());
+        navigator.mediaSession.setActionHandler('seekto', (details) => {
+          if (details.seekTime !== undefined) seek(details.seekTime);
+        });
+      } catch (e) {
+        console.warn('MediaSession handler registration failed:', e);
+      }
+    }
+  }, [state.currentTrack, state.isPlaying, isYouTube]);
 
   const value: PlayerContextType = {
     ...state,
