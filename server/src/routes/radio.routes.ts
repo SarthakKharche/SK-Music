@@ -25,9 +25,6 @@ const RELATED_ARTIST_MAP: Record<string, string[]> = {
   'ap dhillon': ['Gurinder Gill', 'Shubh', 'Karan Aujla', 'Diljit Dosanjh', 'Sidhu Moose Wala', 'Intense', 'Talwiinder'],
 };
 
-const DEFAULT_ENGLISH_RADIO = ['Charlie Puth', 'Selena Gomez', 'Shawn Mendes', 'Ed Sheeran', 'Dua Lipa', 'Taylor Swift', 'Katy Perry', 'Justin Bieber', 'Maroon 5', 'Ariana Grande', 'The Weeknd', 'Coldplay'];
-const DEFAULT_HINDI_RADIO = ['Arijit Singh', 'Shreya Ghoshal', 'Pritam', 'Atif Aslam', 'Jubin Nautiyal', 'KK', 'Sonu Nigam', 'Vishal Mishra', 'B Praak', 'Darshan Raval', 'Jasleen Royal', 'Sachin-Jigar'];
-
 /**
  * GET /api/radio/recommendations
  * Fetch 20+ Spotify/YT Music style radio recommendations
@@ -41,6 +38,7 @@ router.get('/recommendations', async (req: Request, res: Response) => {
     const cleanTitle = trackName.replace(/[\(\)\[\]"'\-_]/g, ' ').replace(/\s+/g, ' ').trim();
     const artistList = artistName.split(/[,&]/).map(a => a.trim()).filter(Boolean);
     const primaryArtist = artistList[0] || '';
+    const secondaryArtist = artistList[1] || '';
     const primaryArtistKey = primaryArtist.toLowerCase();
 
     console.log(`[AUTOPLAY RADIO] Generating Spotify/YT Music radio queue for: "${cleanTitle}" by "${primaryArtist}"`);
