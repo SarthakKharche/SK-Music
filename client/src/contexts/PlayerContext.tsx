@@ -719,7 +719,10 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           const cleanName = (currentTrack.name || '').replace(/[\(\)\[\]"'\-_]/g, ' ').replace(/\s+/g, ' ').trim();
           const currentNormTitle = normalizeTitle(currentTrack.name || '');
 
-          console.log(`[AUTOPLAY] Queue ended. Fetching diverse recommendations for: "${cleanName}" by "${primaryArtist}"`);
+          const rawAlbumName = currentTrack.album?.name || '';
+          const cleanAlbumName = rawAlbumName.replace(/[\(\)\[\]"'\-_]/g, ' ').replace(/\s+/g, ' ').trim();
+
+          console.log(`[AUTOPLAY] Queue ended. Fetching recommendations for: "${cleanName}" | Album: "${cleanAlbumName}" | Artist: "${primaryArtist}"`);
           
           let newTracks: Track[] = [];
 
@@ -733,26 +736,24 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             return false;
           };
 
-          // Try 1: Express Radio Recommendations API
+          // Try 1: Express Radio Recommendations API (with albumName)
           try {
-            const res = await api.get(`/radio/recommendations?trackId=${currentTrack.id}&trackName=${encodeURIComponent(cleanName)}&artistName=${encodeURIComponent(primaryArtist)}`);
+            const res = await api.get(`/radio/recommendations?trackId=${currentTrack.id}&trackName=${encodeURIComponent(cleanName)}&artistName=${encodeURIComponent(primaryArtist)}&albumName=${encodeURIComponent(cleanAlbumName)}`);
             const fetched: Track[] = res.data?.tracks || [];
             if (fetched.length > 0) {
-              // Shuffle fetched candidates for variety
-              const shuffled = [...fetched].sort(() => Math.random() - 0.5);
-              newTracks = shuffled.filter((t: Track) => !isSongAlreadyPlayed(t.id, t.name));
+              newTracks = fetched.filter((t: Track) => !isSongAlreadyPlayed(t.id, t.name));
             }
           } catch {}
 
-          // Try 2: Multi-Query Dynamic Search matching the song & artist context
+          // Try 2: Multi-Query Dynamic Search (Album/Movie Soundtrack -> Artist -> Similar)
           if (newTracks.length === 0) {
             const searchQueries = [
-              primaryArtist ? `${primaryArtist}` : '',
+              cleanAlbumName ? `${cleanAlbumName} ${primaryArtist}` : '',
+              cleanAlbumName ? cleanAlbumName : '',
               primaryArtist ? `${primaryArtist} top hits` : '',
-              cleanName && primaryArtist ? `${cleanName} ${primaryArtist}` : '',
+              primaryArtist ? `${primaryArtist}` : '',
               cleanName ? `${cleanName} radio` : '',
               secondaryArtist ? `${secondaryArtist}` : '',
-              primaryArtist ? `similar to ${primaryArtist}` : '',
             ].filter(Boolean);
 
             for (const q of searchQueries) {
