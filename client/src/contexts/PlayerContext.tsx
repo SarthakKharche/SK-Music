@@ -204,30 +204,29 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   /**
    * Update OS Media Session (Lock Screen & Background Player Notification)
    */
-  const updateMediaSession = (track: Track | null, isPlaying = true, durationSec = 0, currentSec = 0) => {
+  const updateMediaSession = (track: Track | null, isPlaying: boolean, durationSec = 0, currentSec = 0) => {
     if (typeof navigator === 'undefined' || !('mediaSession' in navigator) || !track) return;
 
     try {
       const coverUrl = (track.album as any)?.imageUrl || (track.album as any)?.images?.[0]?.url || '';
       
-      const artwork = coverUrl ? [
-        { src: coverUrl, sizes: '96x96', type: 'image/jpeg' },
-        { src: coverUrl, sizes: '128x128', type: 'image/jpeg' },
-        { src: coverUrl, sizes: '192x192', type: 'image/jpeg' },
-        { src: coverUrl, sizes: '256x256', type: 'image/jpeg' },
-        { src: coverUrl, sizes: '384x384', type: 'image/jpeg' },
-        { src: coverUrl, sizes: '512x512', type: 'image/jpeg' },
-      ] : [];
-
       navigator.mediaSession.metadata = new MediaMetadata({
         title: track.name || 'SK Music',
-        artist: track.artists && track.artists.length > 0 ? track.artists.map((a) => a.name).join(', ') : 'SK Music',
+        artist: track.artists ? track.artists.map((a) => a.name).join(', ') : 'SK Music',
         album: track.album?.name || 'SK Music',
-        artwork: artwork,
+        artwork: coverUrl ? [
+          { src: coverUrl, sizes: '96x96', type: 'image/jpeg' },
+          { src: coverUrl, sizes: '128x128', type: 'image/jpeg' },
+          { src: coverUrl, sizes: '192x192', type: 'image/jpeg' },
+          { src: coverUrl, sizes: '256x256', type: 'image/jpeg' },
+          { src: coverUrl, sizes: '384x384', type: 'image/jpeg' },
+          { src: coverUrl, sizes: '512x512', type: 'image/jpeg' },
+        ] : [],
       });
 
-      // Keep playback state as 'playing' during transitions so OS notification is never dismissed
-      navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
+      if (isPlaying) {
+        navigator.mediaSession.playbackState = 'playing';
+      }
 
       if (durationSec > 0 && 'setPositionState' in navigator.mediaSession) {
         try {
@@ -242,43 +241,6 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       console.warn('MediaSession error:', e);
     }
   };
-
-  /**
-   * Register persistent MediaSession Action Handlers (Next, Previous, Play, Pause, Seek)
-   */
-  useEffect(() => {
-    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
-
-    try {
-      navigator.mediaSession.setActionHandler('play', () => {
-        togglePlayPause();
-      });
-      navigator.mediaSession.setActionHandler('pause', () => {
-        togglePlayPause();
-      });
-      navigator.mediaSession.setActionHandler('previoustrack', () => {
-        previous();
-      });
-      navigator.mediaSession.setActionHandler('nexttrack', () => {
-        next();
-      });
-      navigator.mediaSession.setActionHandler('seekto', (details) => {
-        if (details.seekTime !== undefined && details.seekTime !== null) {
-          seek(details.seekTime);
-        }
-      });
-      navigator.mediaSession.setActionHandler('seekbackward', (details) => {
-        const skip = details.seekOffset || 10;
-        seek(Math.max(0, stateRef.current.currentTime - skip));
-      });
-      navigator.mediaSession.setActionHandler('seekforward', (details) => {
-        const skip = details.seekOffset || 10;
-        seek(Math.min(stateRef.current.duration, stateRef.current.currentTime + skip));
-      });
-    } catch (e) {
-      console.warn('Error setting MediaSession handlers:', e);
-    }
-  }, []);
 
   /**
    * Sync MediaSession state whenever track or playing status changes
@@ -307,9 +269,6 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
     audio.addEventListener('loadedmetadata', () => {
       setState((prev) => ({ ...prev, duration: audio.duration }));
-      if (stateRef.current.currentTrack) {
-        updateMediaSession(stateRef.current.currentTrack, true, audio.duration, audio.currentTime);
-      }
     });
 
     audio.addEventListener('ended', () => {
@@ -318,17 +277,18 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
     audio.addEventListener('play', () => {
       setState((prev) => ({ ...prev, isPlaying: true }));
-      if (stateRef.current.currentTrack) {
-        updateMediaSession(stateRef.current.currentTrack, true, audio.duration, audio.currentTime);
+      const curTrack = stateRef.current.currentTrack;
+      if (curTrack) {
+        updateMediaSession(curTrack, true, audio.duration, audio.currentTime);
       }
     });
 
     audio.addEventListener('pause', () => {
-      // Don't mark isPlaying false or clear mediaSession if track ended and is transitioning
       if (audio.ended) return;
       setState((prev) => ({ ...prev, isPlaying: false }));
-      if (stateRef.current.currentTrack) {
-        updateMediaSession(stateRef.current.currentTrack, false, audio.duration, audio.currentTime);
+      const curTrack = stateRef.current.currentTrack;
+      if (curTrack) {
+        updateMediaSession(curTrack, false, audio.duration, audio.currentTime);
       }
     });
 
@@ -355,7 +315,7 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     if (!audio) return;
 
     try {
-      // Immediately update OS MediaSession metadata (Lockscreen / Notification) so song B shows instantly without disappearing!
+      // Immediately update OS MediaSession metadata (Lockscreen / Notification) for instant visual feedback
       updateMediaSession(track, true);
 
       // Finalise tracking for the previous track before switching
@@ -365,7 +325,7 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       setState((prev) => ({
         ...prev,
         currentTrack: track,
-        isPlaying: true, // Keep isPlaying true so OS notification stays visible during stream loading
+        isPlaying: false, // Will be set to true once audio starts
       }));
 
       // Start tracking the new track
