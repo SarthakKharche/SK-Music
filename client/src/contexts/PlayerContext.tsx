@@ -212,6 +212,65 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   });
 
   /**
+   * Extract and upgrade artwork to maximum resolution for OS MediaSession notification (1024x1024 / 500x500 / 640x640)
+   */
+  const getHighResNotificationArtwork = (track: Track | null): string => {
+    if (!track) return '';
+
+    const albumObj = track.album as any;
+
+    // 1. Check images array if present (Spotify / Apple format)
+    if (Array.isArray(albumObj?.images) && albumObj.images.length > 0) {
+      const sorted = [...albumObj.images].sort((a, b) => (b.width || 0) - (a.width || 0));
+      if (sorted[0]?.url) {
+        return upgradeImageUrl(sorted[0].url);
+      }
+    }
+
+    const rawUrl = albumObj?.imageUrl || albumObj?.url || (track as any)?.imageUrl || '';
+    if (!rawUrl) return '';
+
+    return upgradeImageUrl(rawUrl);
+  };
+
+  const upgradeImageUrl = (url: string): string => {
+    if (!url) return '';
+
+    // JioSaavn CDN: Upgrade 50x50 and 150x150 thumbnails to 500x500 / 1024x1024
+    if (url.includes('saavncdn.com')) {
+      return url.replace(/50x50/g, '500x500').replace(/150x150/g, '500x500');
+    }
+
+    // Spotify CDN: Upgrade low-res 300x300 (1e02) or 64x64 (4851) to 640x640 (b273)
+    if (url.includes('i.scdn.co') || url.includes('spotifycdn.com')) {
+      return url.replace(/ab67616d00001e02/g, 'ab67616d0000b273')
+                .replace(/ab67616d00004851/g, 'ab67616d0000b273');
+    }
+
+    // YouTube Thumbnails: Upgrade default/hqdefault to maxresdefault (1280x720)
+    if (url.includes('ytimg.com')) {
+      return url.replace(/\/(default|hqdefault|mqdefault|sddefault)\.jpg/g, '/maxresdefault.jpg');
+    }
+
+    // Google User Content / YouTube Music Avatars: Upgrade =s120-c to =s1024-c
+    if (url.includes('ggpht.com') || url.includes('googleusercontent.com')) {
+      return url.replace(/=s\d+(-c)?/g, '=s1024-c').replace(/=w\d+-h\d+/g, '=w1024-h1024');
+    }
+
+    // Apple Music / iTunes: Upgrade 100x100bb or 600x600bb to 1024x1024bb
+    if (url.includes('mzstatic.com')) {
+      return url.replace(/\/\d+x\d+bb/g, '/1024x1024bb');
+    }
+
+    // Unsplash: Upgrade quality and width
+    if (url.includes('images.unsplash.com')) {
+      return url.replace(/w=\d+/g, 'w=1024').replace(/q=\d+/g, 'q=95');
+    }
+
+    return url;
+  };
+
+  /**
    * Update OS Media Session (Lock Screen & Background Player Notification)
    */
   const updateMediaSession = (track: Track | null, isPlaying: boolean, durationSec = 0, currentSec = 0) => {
@@ -219,14 +278,16 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
     try {
       if (track) {
-        const coverUrl = (track.album as any)?.imageUrl || (track.album as any)?.images?.[0]?.url || '';
+        const coverUrl = getHighResNotificationArtwork(track);
+        const mimeType = coverUrl.endsWith('.png') ? 'image/png' : 'image/jpeg';
         const artwork = coverUrl ? [
-          { src: coverUrl, sizes: '96x96', type: 'image/jpeg' },
-          { src: coverUrl, sizes: '128x128', type: 'image/jpeg' },
-          { src: coverUrl, sizes: '192x192', type: 'image/jpeg' },
-          { src: coverUrl, sizes: '256x256', type: 'image/jpeg' },
-          { src: coverUrl, sizes: '384x384', type: 'image/jpeg' },
-          { src: coverUrl, sizes: '512x512', type: 'image/jpeg' },
+          { src: coverUrl, sizes: '96x96', type: mimeType },
+          { src: coverUrl, sizes: '128x128', type: mimeType },
+          { src: coverUrl, sizes: '192x192', type: mimeType },
+          { src: coverUrl, sizes: '256x256', type: mimeType },
+          { src: coverUrl, sizes: '384x384', type: mimeType },
+          { src: coverUrl, sizes: '512x512', type: mimeType },
+          { src: coverUrl, sizes: '1024x1024', type: mimeType },
         ] : [
           { src: '/pwa-192x192.png', sizes: '192x192', type: 'image/png' },
           { src: '/pwa-512x512.png', sizes: '512x512', type: 'image/png' },
