@@ -200,6 +200,7 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   // Track transition flag to prevent MediaSession notification teardown during autoplay or stream loading
   const isTransitioningRef = useRef<boolean>(false);
+  const lastTrackEndTimestampRef = useRef<number>(0);
 
   // Stable ref for MediaSession action handlers to prevent stale closure bugs
   const actionHandlersRef = useRef({
@@ -871,7 +872,7 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
                     const shuffledResults = [...results].sort(() => Math.random() - 0.5);
 
                     const parsed: Track[] = shuffledResults.map((item: any) => {
-                      const songId = item.id ? (item.id.startsWith('yt-') ? item.id : `yt-${item.id}`) : `yt-${Math.random()}`;
+                      const songId = item.id ? (item.id.startsWith('jio_') || item.id.startsWith('yt-') ? item.id : `jio_${item.id}`) : `jio_${Math.random()}`;
                       const rawImg = Array.isArray(item.image)
                         ? (item.image[2]?.link || item.image[1]?.link || item.image[0]?.link || item.image[0]?.url)
                         : (item.image || '/placeholder-album.png');
@@ -969,6 +970,13 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
    * Handle track end
    */
   function handleTrackEnd(): void {
+    const now = Date.now();
+    if (now - lastTrackEndTimestampRef.current < 1500) {
+      console.warn('[PLAYER] Suppressed rapid track end trigger to prevent skipping loop');
+      return;
+    }
+    lastTrackEndTimestampRef.current = now;
+
     const current = stateRef.current;
     // Report completion for the track that just ended
     if (current.currentTrack && trackingRef.current && !trackingRef.current.reported) {

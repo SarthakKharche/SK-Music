@@ -93,7 +93,7 @@ router.get('/recommendations', async (req: Request, res: Response) => {
               : (Array.isArray(item.primaryArtists) ? item.primaryArtists.map((a: any) => a.name).join(', ') : (item.subtitle || artist));
 
             candidateTracks.push({
-              id: item.id.startsWith('yt-') ? item.id : `yt-${item.id}`,
+              id: item.id.startsWith('jio_') || item.id.startsWith('yt-') ? item.id : `jio_${item.id}`,
               name: itemName,
               artists: [{ id: 'artist-1', name: itemArtists }],
               album: {
