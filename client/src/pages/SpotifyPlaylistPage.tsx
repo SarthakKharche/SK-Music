@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { usePlayer } from '../contexts/PlayerContext';
 import api from '../utils/api';
-import { FiPlay, FiClock, FiArrowLeft, FiMusic } from 'react-icons/fi';
-import { indexedDB } from '../services/indexedDB';
-import type { Track, Playlist } from '../types';
+import { FiPlay, FiClock, FiArrowLeft, FiMusic, FiMoreVertical } from 'react-icons/fi';
+import { TrackActionSheet } from '../components/common/TrackActionSheet';
+import type { Track } from '../types';
 
 interface SpotifyPlaylistData {
   id: string;
@@ -21,13 +21,13 @@ interface SpotifyPlaylistData {
 const SpotifyPlaylistPage: React.FC = () => {
   const { playlistId } = useParams<{ playlistId: string }>();
   const navigate = useNavigate();
-  const { playTrack, currentTrack, isPlaying } = usePlayer();
+  const { playTrack, currentTrack } = usePlayer();
   
   const [playlist, setPlaylist] = useState<SpotifyPlaylistData | null>(null);
   const [tracks, setTracks] = useState<Track[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [customPlaylists, setCustomPlaylists] = useState<Playlist[]>([]);
+  const [actionSheetTrack, setActionSheetTrack] = useState<Track | null>(null);
  
   useEffect(() => {
     if (playlistId) {
@@ -35,36 +35,37 @@ const SpotifyPlaylistPage: React.FC = () => {
     }
   }, [playlistId]);
 
-  useEffect(() => {
-    indexedDB.getPlaylists().then(lists => {
-      setCustomPlaylists(lists.filter(l => l.id.startsWith('custom_')));
-    });
-
-    const handlePlaylistsUpdated = () => {
-      indexedDB.getPlaylists().then(lists => {
-        setCustomPlaylists(lists.filter(l => l.id.startsWith('custom_')));
-      });
-    };
-    window.addEventListener('playlists-updated', handlePlaylistsUpdated);
-    return () => {
-      window.removeEventListener('playlists-updated', handlePlaylistsUpdated);
-    };
-  }, []);
-
   const loadPlaylist = async () => {
     try {
       setLoading(true);
       setError(null);
       
       const response = await api.get<{ playlist: SpotifyPlaylistData; tracks: Track[] }>(
-        `/spotify/playlist/${playlistId}`
+        `/spotify/playlists/${playlistId}`
       );
       
       setPlaylist(response.data.playlist);
-      setTracks(response.data.tracks);
+      setTracks(response.data.tracks || []);
     } catch (err) {
       console.error('Failed to load playlist:', err);
-      setError('Failed to load playlist. Please try again.');
+      try {
+        const ytRes = await api.get<{ name: string; description: string; imageUrl: string; tracks: Track[] }>(`/youtube-music/playlists/${playlistId}`);
+        if (ytRes.data) {
+          setPlaylist({
+            id: playlistId!,
+            name: ytRes.data.name || 'Playlist',
+            description: ytRes.data.description || '',
+            imageUrl: ytRes.data.imageUrl || '',
+            trackCount: ytRes.data.tracks?.length || 0,
+            owner: { id: 'sk-music', name: 'SK Music' }
+          });
+          setTracks(ytRes.data.tracks || []);
+        } else {
+          setError('Failed to load playlist. Please try again.');
+        }
+      } catch {
+        setError('Failed to load playlist. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -92,7 +93,7 @@ const SpotifyPlaylistPage: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full bg-spotify-black">
+      <div className="flex items-center justify-center h-full min-h-[50vh]">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-spotify-green"></div>
       </div>
     );
@@ -100,11 +101,11 @@ const SpotifyPlaylistPage: React.FC = () => {
 
   if (error || !playlist) {
     return (
-      <div className="flex flex-col items-center justify-center h-full bg-spotify-black text-white">
+      <div className="flex flex-col items-center justify-center h-full min-h-[50vh] text-center px-4">
         <p className="text-spotify-lightgray mb-4">{error || 'Playlist not found'}</p>
         <button
           onClick={() => navigate(-1)}
-          className="bg-spotify-green text-black px-6 py-2 rounded-full font-bold hover:scale-105 transition-transform"
+          className="px-6 py-2 bg-spotify-green text-black font-bold rounded-full hover:scale-105 transition-transform"
         >
           Go Back
         </button>
@@ -113,163 +114,114 @@ const SpotifyPlaylistPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-full bg-spotify-black pb-32">
+    <div className="pb-32 w-full min-h-screen bg-[#121212]">
       {/* Header */}
-      <div className="bg-gradient-to-b from-[#535353] to-spotify-black">
-        {/* Back Button */}
-        <div className="p-4">
-          <button
-            onClick={() => navigate(-1)}
-            className="text-white hover:text-spotify-green transition-colors"
-          >
-            <FiArrowLeft size={24} />
-          </button>
-        </div>
+      <div className="relative bg-gradient-to-b from-spotify-gray to-transparent p-8">
+        <button
+          onClick={() => navigate(-1)}
+          className="mb-6 p-2 rounded-full bg-black/40 hover:bg-black/60 text-white transition-colors flex items-center justify-center"
+        >
+          <FiArrowLeft size={20} />
+        </button>
 
-        {/* Playlist Info */}
-        <div className="flex flex-col md:flex-row items-center md:items-end gap-6 p-6 pt-0">
-          {/* Cover Image */}
+        <div className="flex items-end gap-6">
           {playlist.imageUrl ? (
             <img
               src={playlist.imageUrl}
               alt={playlist.name}
-              className="w-48 h-48 md:w-56 md:h-56 object-cover shadow-2xl"
+              className="w-48 h-48 rounded-lg shadow-2xl object-cover"
             />
           ) : (
-            <div className="w-48 h-48 md:w-56 md:h-56 bg-spotify-gray flex items-center justify-center shadow-2xl">
-              <FiMusic className="text-spotify-lightgray text-6xl" />
+            <div className="w-48 h-48 bg-spotify-black rounded-lg flex items-center justify-center shadow-2xl">
+              <FiMusic className="text-spotify-lightgray text-5xl" />
             </div>
           )}
 
-          {/* Playlist Details */}
-          <div className="text-center md:text-left">
-            <p className="text-white text-xs uppercase font-bold mb-2">Playlist</p>
-            <h1 className="text-white text-4xl md:text-6xl font-bold mb-4 line-clamp-2">
-              {playlist.name}
-            </h1>
+          <div>
+            <p className="text-sm font-semibold uppercase text-white mb-2">PLAYLIST</p>
+            <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">{playlist.name}</h1>
             {playlist.description && (
-              <p className="text-spotify-lightgray text-sm mb-2 line-clamp-2">
-                {playlist.description}
-              </p>
+              <p className="text-spotify-lightgray text-sm mb-4 max-w-2xl">{playlist.description}</p>
             )}
-            <p className="text-white text-sm">
-              <span className="font-bold">{playlist.owner?.name || 'Spotify'}</span>
-              <span className="text-spotify-lightgray"> • {playlist.trackCount} songs</span>
-            </p>
+            <div className="flex items-center gap-2 text-sm text-spotify-lightgray">
+              <span className="font-semibold text-white">{playlist.owner?.name || 'SK Music'}</span>
+              <span>•</span>
+              <span>{tracks.length} songs</span>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Controls */}
-      <div className="px-6 py-4 flex items-center gap-4">
+      {/* Play Controls */}
+      <div className="px-8 py-6">
         <button
           onClick={handlePlayAll}
-          className="w-14 h-14 bg-spotify-green rounded-full flex items-center justify-center hover:scale-105 transition-transform shadow-lg"
+          disabled={tracks.length === 0}
+          className="w-14 h-14 bg-spotify-green rounded-full flex items-center justify-center hover:scale-105 transition-transform shadow-lg disabled:opacity-50"
         >
-          <FiPlay className="text-black ml-1" size={28} />
+          <FiPlay className="text-black text-2xl ml-1" fill="black" />
         </button>
       </div>
 
-      {/* Track List */}
-      <div className="px-6">
-        {/* Header Row */}
-        <div className="grid grid-cols-[16px_4fr_2fr_1fr_110px] gap-4 px-4 py-2 border-b border-white/10 text-spotify-lightgray text-sm">
-          <span>#</span>
-          <span>Title</span>
-          <span>Album</span>
-          <span className="flex justify-end">
-            <FiClock />
-          </span>
+      {/* Track List - Search Page Format */}
+      <div className="px-4 md:px-8 pb-8">
+        <div className="hidden md:grid grid-cols-[48px_1fr_1fr_80px_48px] gap-3 px-4 py-2 text-spotify-lightgray text-sm border-b border-spotify-lightgray/20 sticky top-0 bg-[#121212] z-10">
+          <div>#</div>
+          <div>Title</div>
+          <div>Album</div>
+          <div className="text-right"><FiClock /></div>
           <div></div>
         </div>
 
-        {/* Tracks */}
-        <div className="mt-2">
+        <div className="space-y-1 mt-2">
           {tracks.map((track, index) => (
             <div
-              key={track.id}
+              key={`${track.id}-${index}`}
               onClick={() => handlePlayTrack(track, index)}
-              className={`grid grid-cols-[16px_4fr_2fr_1fr_110px] gap-4 px-4 py-2 rounded-md cursor-pointer group
-                ${isCurrentTrack(track) ? 'bg-white/20' : 'hover:bg-white/10'}`}
+              className="flex items-center justify-between md:grid md:grid-cols-[48px_1fr_1fr_80px_48px] gap-3 px-3 py-2.5 rounded-xl group cursor-pointer transition-colors hover:bg-white/10"
             >
-              {/* Track Number / Play Icon */}
-              <div className="flex items-center justify-center text-spotify-lightgray">
-                {isCurrentTrack(track) && isPlaying ? (
-                  <div className="w-4 h-4 flex items-center justify-center">
-                    <div className="flex gap-0.5">
-                      <span className="w-0.5 h-3 bg-spotify-green animate-pulse"></span>
-                      <span className="w-0.5 h-3 bg-spotify-green animate-pulse delay-75"></span>
-                      <span className="w-0.5 h-3 bg-spotify-green animate-pulse delay-150"></span>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <span className="group-hover:hidden text-sm">
-                      {isCurrentTrack(track) ? (
-                        <span className="text-spotify-green">{index + 1}</span>
-                      ) : (
-                        index + 1
-                      )}
-                    </span>
-                    <FiPlay className="hidden group-hover:block text-white" size={14} />
-                  </>
-                )}
+              {/* Number / Play */}
+              <div className="hidden md:flex items-center justify-center">
+                <span className="group-hover:hidden text-spotify-lightgray">{index + 1}</span>
+                <FiPlay className="hidden group-hover:block text-white" size={14} fill="white" />
               </div>
 
               {/* Track Info */}
-              <div className="flex items-center gap-3 min-w-0">
-                {track.album.imageUrl && (
-                  <img
-                    src={track.album.imageUrl}
-                    alt={track.album.name}
-                    className="w-10 h-10 rounded"
-                  />
-                )}
-                <div className="min-w-0">
-                  <p className={`font-medium truncate ${isCurrentTrack(track) ? 'text-spotify-green' : 'text-white'}`}>
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <img
+                  src={track.album?.imageUrl || '/placeholder-album.png'}
+                  alt={track.name}
+                  className="w-12 h-12 md:w-10 md:h-10 rounded-lg object-cover shadow flex-shrink-0"
+                />
+                <div className="min-w-0 flex-1">
+                  <p className={`font-semibold text-sm md:text-base truncate ${isCurrentTrack(track) ? 'text-spotify-green' : 'text-white'}`}>
                     {track.name}
                   </p>
-                  <p className="text-spotify-lightgray text-sm truncate">
+                  <p className="text-xs md:text-sm text-spotify-lightgray truncate mt-0.5">
                     {track.artists.map((a) => a.name).join(', ')}
                   </p>
                 </div>
               </div>
 
               {/* Album */}
-              <div className="flex items-center text-spotify-lightgray text-sm truncate">
-                {track.album.name}
+              <div className="hidden md:flex items-center text-spotify-lightgray text-sm truncate hover:underline">
+                {track.album?.name}
               </div>
 
               {/* Duration */}
-              <div className="flex items-center justify-end text-spotify-lightgray text-sm">
+              <div className="hidden md:flex items-center justify-end text-spotify-lightgray text-sm">
                 {formatDuration(track.durationMs)}
               </div>
 
-              {/* Playlist Select Dropdown */}
-              <div className="flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
-                <select
-                  onChange={async (e) => {
-                    const targetPlaylistId = e.target.value;
-                    if (!targetPlaylistId) return;
-                    try {
-                      if (navigator.onLine) {
-                        await api.post(`/user/playlists/${targetPlaylistId}/tracks`, { track });
-                      }
-                      await indexedDB.saveTracks([{ ...track, playlistId: targetPlaylistId }]);
-                      alert('Track added to playlist!');
-                      e.target.value = '';
-                    } catch (err) {
-                      console.error(err);
-                      alert('Failed to add track');
-                    }
-                  }}
-                  className="bg-white/5 border border-white/10 text-white/50 text-[11px] rounded px-1.5 py-1 hover:text-white hover:bg-white/10 cursor-pointer outline-none max-w-[100px] truncate"
+              {/* 3-Dots Options Button */}
+              <div className="flex items-center justify-end" onClick={(e) => e.stopPropagation()}>
+                <button
+                  onClick={() => setActionSheetTrack(track)}
+                  className="p-2 text-white/70 hover:text-white rounded-full active:bg-white/10 transition-colors"
+                  title="Options"
                 >
-                  <option value="">+ Add</option>
-                  {customPlaylists.map(p => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
+                  <FiMoreVertical size={20} />
+                </button>
               </div>
             </div>
           ))}
@@ -281,6 +233,12 @@ const SpotifyPlaylistPage: React.FC = () => {
           </div>
         )}
       </div>
+
+      <TrackActionSheet
+        track={actionSheetTrack}
+        isOpen={!!actionSheetTrack}
+        onClose={() => setActionSheetTrack(null)}
+      />
     </div>
   );
 };

@@ -10,11 +10,12 @@ import {
   FiCheck,
   FiClock,
   FiMusic,
-  FiArrowLeft
+  FiArrowLeft,
+  FiMoreVertical
 } from 'react-icons/fi';
 import { formatDuration } from '../utils/helpers';
-import { indexedDB } from '../services/indexedDB';
-import type { Track, Playlist } from '../types';
+import type { Track } from '../types';
+import { TrackActionSheet } from '../components/common/TrackActionSheet';
 
 interface PlaylistInfo {
   name: string;
@@ -28,30 +29,14 @@ const YoutubePlaylistPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const titleQuery = searchParams.get('title');
   const navigate = useNavigate();
-  const { playTrack } = usePlayer();
+  const { playTrack, currentTrack } = usePlayer();
   const { toggleOfflineTrack, syncStatus } = useOffline();
   
   const [playlist, setPlaylist] = useState<PlaylistInfo | null>(null);
   const [cachedTracks, setCachedTracks] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
-  const [customPlaylists, setCustomPlaylists] = useState<Playlist[]>([]);
-
-  useEffect(() => {
-    indexedDB.getPlaylists().then(lists => {
-      setCustomPlaylists(lists.filter(l => l.id.startsWith('custom_')));
-    });
-
-    const handlePlaylistsUpdated = () => {
-      indexedDB.getPlaylists().then(lists => {
-        setCustomPlaylists(lists.filter(l => l.id.startsWith('custom_')));
-      });
-    };
-    window.addEventListener('playlists-updated', handlePlaylistsUpdated);
-    return () => {
-      window.removeEventListener('playlists-updated', handlePlaylistsUpdated);
-    };
-  }, []);
   const [error, setError] = useState<string | null>(null);
+  const [actionSheetTrack, setActionSheetTrack] = useState<Track | null>(null);
 
   useEffect(() => {
     if (playlistId) {
@@ -89,7 +74,6 @@ const YoutubePlaylistPage: React.FC = () => {
   };
 
   const handlePlayTrack = async (track: Track) => {
-    // Set YouTube ID mapping in localStorage so playback works immediately
     const cleanYtId = track.id.replace('yt-', '');
     localStorage.setItem(`youtube_${track.id}`, cleanYtId);
     
@@ -124,24 +108,20 @@ const YoutubePlaylistPage: React.FC = () => {
 
   if (error || !playlist) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center p-6 text-center text-white">
-        <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center text-red-500 border border-red-500/20 mb-4">
-          <FiMusic size={24} />
-        </div>
-        <h3 className="text-xl font-bold mb-2">Could Not Load Playlist</h3>
-        <p className="text-white/60 max-w-md mb-6">{error || 'Playlist not found'}</p>
+      <div className="flex-1 flex flex-col items-center justify-center min-h-[50vh] text-white p-6 text-center">
+        <p className="text-white/60 mb-4">{error || 'Playlist not found.'}</p>
         <button
-          onClick={loadPlaylist}
-          className="px-6 py-2.5 rounded-full bg-red-600 text-white font-semibold hover:bg-red-700 transition-colors shadow-lg"
+          onClick={() => navigate('/youtube-music')}
+          className="px-6 py-2 bg-red-600 hover:bg-red-500 rounded-full text-white font-semibold transition-colors"
         >
-          Try Again
+          Back to YouTube Music
         </button>
       </div>
     );
   }
 
   return (
-    <div className="flex-1 overflow-y-auto bg-gradient-to-b from-[#0a0f1d] to-[#04060c] pb-24 text-white">
+    <div className="flex-1 bg-gradient-to-b from-[#0a0f1d] to-[#04060c] pb-32 text-white min-h-screen">
       {/* Back Button */}
       <div className="p-4 pl-8 pt-6">
         <button
@@ -196,113 +176,105 @@ const YoutubePlaylistPage: React.FC = () => {
         </button>
       </div>
 
-      {/* Track List */}
-      <div className="px-8 pb-8">
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="border-b border-white/10 text-white/50 text-sm font-semibold">
-              <th className="pb-3 w-12 text-center">#</th>
-              <th className="pb-3">Title</th>
-              <th className="pb-3 hidden md:table-cell">Album</th>
-              <th className="pb-3 w-24 text-center">
-                <FiClock className="mx-auto" />
-              </th>
-              <th className="pb-3 w-16 text-center"></th>
-              <th className="pb-3 w-24 text-center"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {playlist.tracks.map((track, index) => {
-              const isCached = cachedTracks.has(track.id);
-              const status = syncStatus.get(track.id);
+      {/* Track List - Search Page Format */}
+      <div className="px-4 md:px-8 pb-8">
+        <div className="hidden md:grid grid-cols-[48px_1fr_1fr_80px_48px_48px] gap-3 px-4 py-2 text-white/50 text-sm border-b border-white/10 sticky top-0 bg-[#04060c] z-10">
+          <div>#</div>
+          <div>Title</div>
+          <div>Album</div>
+          <div className="text-right"><FiClock /></div>
+          <div></div>
+          <div></div>
+        </div>
 
-              return (
-                <tr
-                  key={track.id}
-                  className="group hover:bg-white/5 transition-colors border-b border-white/5 last:border-0"
-                >
-                  <td className="py-4 text-center text-white/40 group-hover:text-white font-medium">
-                    <button
-                      onClick={() => handlePlayTrack(track)}
-                      className="hover:text-red-500 transition-colors"
-                    >
-                      {index + 1}
-                    </button>
-                  </td>
-                  <td className="py-4 flex items-center gap-3">
-                    {track.album?.imageUrl && (
-                      <img
-                        src={track.album.imageUrl}
-                        alt={track.name}
-                        className="w-10 h-10 rounded-lg object-cover bg-white/5"
-                      />
+        <div className="space-y-1 mt-2">
+          {playlist.tracks.map((track, index) => {
+            const isCached = cachedTracks.has(track.id);
+            const status = syncStatus.get(track.id);
+            const isCurrentTrack = currentTrack?.id === track.id;
+
+            return (
+              <div
+                key={`${track.id}-${index}`}
+                onClick={() => handlePlayTrack(track)}
+                className="flex items-center justify-between md:grid md:grid-cols-[48px_1fr_1fr_80px_48px_48px] gap-3 px-3 py-2.5 rounded-xl group cursor-pointer transition-colors hover:bg-white/10"
+              >
+                {/* Index / Play Button */}
+                <div className="hidden md:flex items-center justify-center">
+                  <span className="group-hover:hidden text-white/50">{index + 1}</span>
+                  <FiPlay className="hidden group-hover:block text-white" size={14} fill="white" />
+                </div>
+
+                {/* Track Info */}
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <img
+                    src={track.album?.imageUrl || '/placeholder-album.png'}
+                    alt={track.name}
+                    className="w-12 h-12 md:w-10 md:h-10 rounded-lg object-cover shadow flex-shrink-0"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className={`font-semibold text-sm md:text-base truncate ${isCurrentTrack ? 'text-spotify-green' : 'text-white'}`}>
+                      {track.name}
+                    </p>
+                    <p className="text-xs md:text-sm text-white/50 truncate mt-0.5">
+                      {track.artists.map((a) => a.name).join(', ')}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Album */}
+                <div className="hidden md:flex items-center text-white/50 text-sm truncate hover:underline">
+                  {track.album?.name}
+                </div>
+
+                {/* Duration */}
+                <div className="hidden md:flex items-center justify-end text-white/50 text-sm">
+                  {formatDuration(track.durationMs)}
+                </div>
+
+                {/* Download Button */}
+                <div className="hidden md:flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    onClick={(e) => handleToggleOffline(e, track)}
+                    className={`p-2 rounded-full transition-colors ${
+                      isCached
+                        ? 'text-spotify-green hover:text-green-400'
+                        : 'text-white/50 hover:text-white'
+                    }`}
+                    disabled={status?.status === 'downloading'}
+                    title={isCached ? 'Remove from offline' : 'Download for offline'}
+                  >
+                    {status?.status === 'downloading' ? (
+                      <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-red-500"></div>
+                    ) : isCached ? (
+                      <FiCheck size={16} />
+                    ) : (
+                      <FiDownload size={16} />
                     )}
-                    <div className="min-w-0">
-                      <p className="text-white font-semibold truncate group-hover:text-red-400 transition-colors cursor-pointer" onClick={() => handlePlayTrack(track)}>
-                        {track.name}
-                      </p>
-                      <p className="text-sm text-white/50 truncate">
-                        {track.artists.map((a) => a.name).join(', ')}
-                      </p>
-                    </div>
-                  </td>
-                  <td className="py-4 text-white/50 text-sm hidden md:table-cell truncate max-w-xs">
-                    {track.album.name}
-                  </td>
-                  <td className="py-4 text-center text-white/50 text-sm">
-                    {formatDuration(track.durationMs)}
-                  </td>
-                  <td className="py-4 text-center">
-                    <button
-                      onClick={(e) => handleToggleOffline(e, track)}
-                      className={`p-2 rounded-full transition-all duration-300 ${
-                        isCached
-                          ? 'text-green-500 hover:text-green-400'
-                          : 'text-white/40 hover:text-white hover:bg-white/5'
-                      }`}
-                      disabled={status?.status === 'downloading'}
-                      title={isCached ? 'Remove from offline' : 'Download for offline'}
-                    >
-                      {status?.status === 'downloading' ? (
-                        <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-red-500"></div>
-                      ) : isCached ? (
-                        <FiCheck size={16} />
-                      ) : (
-                        <FiDownload size={16} />
-                      )}
-                    </button>
-                  </td>
-                  <td className="py-4 text-center">
-                    <select
-                      onChange={async (e) => {
-                        const targetPlaylistId = e.target.value;
-                        if (!targetPlaylistId) return;
-                        try {
-                          if (navigator.onLine) {
-                            await api.post(`/user/playlists/${targetPlaylistId}/tracks`, { track });
-                          }
-                          await indexedDB.saveTracks([{ ...track, playlistId: targetPlaylistId }]);
-                          alert('Track added to playlist!');
-                          e.target.value = '';
-                        } catch (err) {
-                          console.error(err);
-                          alert('Failed to add track');
-                        }
-                      }}
-                      className="bg-white/5 border border-white/10 text-white/50 text-[11px] rounded px-1.5 py-1 hover:text-white hover:bg-white/10 cursor-pointer outline-none max-w-[100px] truncate"
-                    >
-                      <option value="">+ Add</option>
-                      {customPlaylists.map(p => (
-                        <option key={p.id} value={p.id}>{p.name}</option>
-                      ))}
-                    </select>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                  </button>
+                </div>
+
+                {/* 3-Dots Options Menu */}
+                <div className="flex items-center justify-end" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    onClick={() => setActionSheetTrack(track)}
+                    className="p-2 text-white/70 hover:text-white rounded-full active:bg-white/10 transition-colors"
+                    title="Options"
+                  >
+                    <FiMoreVertical size={20} />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
+
+      <TrackActionSheet
+        track={actionSheetTrack}
+        isOpen={!!actionSheetTrack}
+        onClose={() => setActionSheetTrack(null)}
+      />
     </div>
   );
 };

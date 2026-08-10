@@ -23,9 +23,11 @@ import {
   FiRefreshCw,
   FiZap,
   FiHeadphones,
+  FiMoreVertical,
 } from 'react-icons/fi';
 import { usePlayer } from '../contexts/PlayerContext';
 import { useMadeForYou } from '../contexts/MadeForYouContext';
+import { TrackActionSheet } from '../components/common/TrackActionSheet';
 import { indexedDB } from '../services/indexedDB';
 import type { MadeForYouPlaylist, MadeForYouTrackEntry, Track } from '../types';
 
@@ -91,6 +93,7 @@ const MadeForYouPlaylistPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [cachedTracks, setCachedTracks] = useState<Set<string>>(new Set());
   const [regenerating, setRegenerating] = useState(false);
+  const [actionSheetTrack, setActionSheetTrack] = useState<Track | null>(null);
 
   // ─── Load playlist ──────────────────────────────────────────────────────
 
@@ -311,7 +314,7 @@ const MadeForYouPlaylistPage: React.FC = () => {
       {/* Track List */}
       <div className="px-6 mt-4">
         {/* Column headers */}
-        <div className="grid grid-cols-[40px_1fr_1fr_120px_60px] gap-4 px-4 py-2 text-xs uppercase tracking-wider text-white/30 border-b border-white/5">
+        <div className="grid grid-cols-[40px_1fr_1fr_120px_60px_40px] gap-4 px-4 py-2 text-xs uppercase tracking-wider text-white/30 border-b border-white/5">
           <span>#</span>
           <span>Title</span>
           <span>Album</span>
@@ -319,25 +322,26 @@ const MadeForYouPlaylistPage: React.FC = () => {
           <span className="text-right">
             <FiClock size={14} />
           </span>
+          <span></span>
         </div>
 
         {/* Tracks */}
         {playlist.tracks.map((entry, i) => {
           const isActive = currentTrack?.id === entry.trackId;
           const isCached = cachedTracks.has(entry.trackId);
+          const trackData = entryToTrack(entry, playlist.id, playlist.userId);
 
           return (
-            <button
+            <div
               key={`${entry.trackId}-${i}`}
-              onClick={() => handlePlayTrack(entry)}
-              className={`group w-full grid grid-cols-[40px_1fr_1fr_120px_60px] gap-4 px-4 py-3 rounded-lg text-left transition-all duration-150 ${
+              className={`group w-full grid grid-cols-[40px_1fr_1fr_120px_60px_40px] gap-4 px-4 py-3 rounded-lg text-left transition-all duration-150 ${
                 isActive
                   ? 'bg-white/10 border border-white/10'
                   : 'hover:bg-white/5 border border-transparent'
               }`}
             >
               {/* Number / playing indicator */}
-              <span className="flex items-center">
+              <button onClick={() => handlePlayTrack(entry)} className="flex items-center">
                 {isActive && isPlaying ? (
                   <span className="flex items-end gap-0.5 h-4">
                     <span className="w-0.5 bg-green-400 animate-[bounce_0.6s_ease-in-out_infinite]" style={{ height: '60%' }} />
@@ -349,10 +353,10 @@ const MadeForYouPlaylistPage: React.FC = () => {
                     {i + 1}
                   </span>
                 )}
-              </span>
+              </button>
 
               {/* Track info */}
-              <div className="flex items-center gap-3 min-w-0">
+              <button onClick={() => handlePlayTrack(entry)} className="flex items-center gap-3 min-w-0">
                 <div className="w-10 h-10 rounded-lg bg-white/10 overflow-hidden flex-shrink-0">
                   {entry.album.imageUrl ? (
                     <img
@@ -383,21 +387,21 @@ const MadeForYouPlaylistPage: React.FC = () => {
                     {entry.artists.map((a) => a.name).join(', ')}
                   </p>
                 </div>
-              </div>
+              </button>
 
               {/* Album */}
-              <div className="flex items-center">
+              <button onClick={() => handlePlayTrack(entry)} className="flex items-center">
                 <span className="text-sm text-white/40 truncate">
                   {entry.album.name}
                 </span>
-              </div>
+              </button>
 
               {/* Reason */}
-              <div className="flex items-center">
+              <button onClick={() => handlePlayTrack(entry)} className="flex items-center">
                 <span className="text-[11px] text-white/30 truncate">
                   {reasonLabels[entry.reason] || entry.reason}
                 </span>
-              </div>
+              </button>
 
               {/* Duration + cache */}
               <div className="flex items-center justify-end gap-2">
@@ -408,7 +412,17 @@ const MadeForYouPlaylistPage: React.FC = () => {
                   {msToTime(entry.durationMs)}
                 </span>
               </div>
-            </button>
+
+              {/* Actions */}
+              <div className="flex items-center justify-center">
+                <button
+                  onClick={() => setActionSheetTrack(trackData)}
+                  className="text-white/40 hover:text-white transition"
+                >
+                  <FiMoreVertical size={16} />
+                </button>
+              </div>
+            </div>
           );
         })}
 
@@ -425,6 +439,12 @@ const MadeForYouPlaylistPage: React.FC = () => {
           </div>
         )}
       </div>
+
+      <TrackActionSheet
+        track={actionSheetTrack}
+        isOpen={!!actionSheetTrack}
+        onClose={() => setActionSheetTrack(null)}
+      />
     </div>
   );
 };
