@@ -520,8 +520,9 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         }
 
         if (audioRef.current && url) {
-          audioRef.current.src = url;
-          audioRef.current.load();
+          if (audioRef.current.src !== url) {
+            audioRef.current.src = url;
+          }
           const playPromise = audioRef.current.play();
           if (playPromise !== undefined) {
             playPromise.catch((err) => {
@@ -532,19 +533,7 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         }
 
         // Set OS MediaSession metadata for background playback & lockscreen controls
-        if (typeof navigator !== 'undefined' && 'mediaSession' in navigator) {
-          try {
-            navigator.mediaSession.metadata = new MediaMetadata({
-              title: track.name,
-              artist: track.artists?.map((a) => a.name).join(', ') || 'SK Music',
-              album: track.album?.name || 'SK Music',
-              artwork: [
-                { src: track.album?.imageUrl || '/pwa-192x192.png', sizes: '192x192', type: 'image/png' },
-                { src: track.album?.imageUrl || '/pwa-512x512.png', sizes: '512x512', type: 'image/png' },
-              ],
-            });
-          } catch {}
-        }
+        updateMediaSession(track, true);
 
         setState((prev) => ({
           ...prev,
