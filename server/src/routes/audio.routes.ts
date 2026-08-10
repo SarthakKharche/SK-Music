@@ -95,8 +95,8 @@ router.get('/saavn-search', async (req: Request, res: Response) => {
         if (streamUrl) {
           console.log(`[AUDIO DOWNLOAD] Found JioSaavn CDN stream URL: ${streamUrl.substring(0, 70)}...`);
 
-          // If JSON format requested, return direct seekable CDN URL for instant client playback (<10ms)
-          if (req.query.format === 'json' || req.headers.accept?.includes('application/json')) {
+          // If JSON format explicitly requested, return direct seekable CDN URL
+          if (req.query.format === 'json' && !req.query.download) {
             return res.json({ url: streamUrl });
           }
 

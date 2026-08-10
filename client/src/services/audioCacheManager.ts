@@ -163,15 +163,37 @@ class AudioCacheManager {
 
     let blob: Blob | null = null;
 
-    // Fetch audio stream via Axios api.get
+    // Fetch audio stream via Axios api.get with explicit audio Accept headers & download flag
     try {
-      const audioResponse = await api.get(`/audio/saavn-search?query=${query}&trackId=${targetTrackId}`, {
+      const audioResponse = await api.get(`/audio/saavn-search?query=${query}&trackId=${targetTrackId}&download=true`, {
         responseType: 'blob',
-        timeout: 30000,
+        timeout: 35000,
+        headers: {
+          'Accept': 'audio/mpeg, audio/mp4, audio/aac, audio/*, application/octet-stream',
+        },
       });
 
-      if (audioResponse.data && audioResponse.data.size >= 30000) {
-        blob = audioResponse.data;
+      let rawData = audioResponse.data;
+
+      // Handle cases where response is a small JSON blob containing direct CDN url
+      if (rawData && rawData.size < 5000) {
+        try {
+          const textData = await rawData.text();
+          const jsonParsed = JSON.parse(textData);
+          if (jsonParsed && jsonParsed.url) {
+            console.log('[OFFLINE] Fetching direct CDN audio binary:', jsonParsed.url.substring(0, 60));
+            const directRes = await fetch(jsonParsed.url);
+            if (directRes.ok) {
+              rawData = await directRes.blob();
+            }
+          }
+        } catch {
+          // Not JSON
+        }
+      }
+
+      if (rawData && rawData.size >= 30000) {
+        blob = rawData;
         this.notifySyncStatus({
           trackId: track.id,
           status: 'downloading',
