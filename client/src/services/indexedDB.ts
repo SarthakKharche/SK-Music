@@ -461,28 +461,18 @@ class IndexedDBManager {
       if (!item.track) continue;
       
       let trackObj = { ...item.track };
-      
-      // If duration is stuck on 180000ms (3:00), compute real duration from blob metadata
-      if ((!trackObj.durationMs || trackObj.durationMs === 180000) && item.blob) {
-        try {
-          const tempAudio = document.createElement('audio');
-          const tempUrl = URL.createObjectURL(item.blob);
-          tempAudio.src = tempUrl;
-          await new Promise<void>((res) => {
-            tempAudio.onloadedmetadata = () => {
-              if (tempAudio.duration && !isNaN(tempAudio.duration)) {
-                trackObj.durationMs = Math.round(tempAudio.duration * 1000);
-              }
-              URL.revokeObjectURL(tempUrl);
-              res();
-            };
-            tempAudio.onerror = () => {
-              URL.revokeObjectURL(tempUrl);
-              res();
-            };
-            setTimeout(res, 500);
-          });
-        } catch {}
+
+      if (!trackObj.name || trackObj.name === 'Unknown Track') {
+        trackObj.name = (item as any).name || (trackObj as any).title || 'Downloaded Track';
+      }
+      if (!trackObj.artists || trackObj.artists.length === 0) {
+        trackObj.artists = [{ id: 'artist-1', name: (trackObj as any).artist || (trackObj as any).subtitle || 'SK Music' }];
+      }
+      if (!trackObj.album) {
+        trackObj.album = { id: 'album-1', name: trackObj.name, imageUrl: (trackObj as any).imageUrl || '/placeholder-album.png' };
+      }
+      if (item.durationMs && item.durationMs > 0 && item.durationMs !== 180000) {
+        trackObj.durationMs = item.durationMs;
       }
 
       uniqueTracks.set(trackObj.id, trackObj);

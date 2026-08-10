@@ -192,28 +192,37 @@ class AudioCacheManager {
       throw new Error('Downloaded audio binary is incomplete or unavailable');
     }
 
-    // Calculate exact real audio duration from binary blob metadata
-    const realDurationMs = await new Promise<number>((resolve) => {
-      try {
-        const tempAudio = document.createElement('audio');
-        const tempUrl = URL.createObjectURL(blob);
-        tempAudio.src = tempUrl;
-        tempAudio.onloadedmetadata = () => {
-          const duration = Math.round(tempAudio.duration * 1000);
-          URL.revokeObjectURL(tempUrl);
-          resolve(duration && !isNaN(duration) && duration > 0 ? duration : (track.durationMs || 180000));
-        };
-        tempAudio.onerror = () => {
-          URL.revokeObjectURL(tempUrl);
-          resolve(track.durationMs || 180000);
-        };
-      } catch {
-        resolve(track.durationMs || 180000);
+    // Calculate 100% exact real audio duration from binary blob using Web Audio API decodeAudioData
+    let realDurationMs = track.durationMs || 0;
+    try {
+      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const arrayBuffer = await blob.slice(0).arrayBuffer();
+      const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+      if (audioBuffer && audioBuffer.duration > 0) {
+        realDurationMs = Math.round(audioBuffer.duration * 1000);
       }
-    });
+      audioCtx.close().catch(() => {});
+    } catch {
+      // Fallback if decodeAudioData fails
+    }
 
-    const updatedTrack = {
+    if (!realDurationMs || realDurationMs <= 0) {
+      realDurationMs = track.durationMs || 180000;
+    }
+
+    const cleanName = track.name || (track as any).title || 'Song';
+    const cleanArtists = track.artists && track.artists.length > 0
+      ? track.artists
+      : [{ id: 'artist-1', name: (track as any).subtitle || (track as any).artist || 'SK Music' }];
+    const cleanAlbum = track.album?.name
+      ? track.album
+      : { id: 'album-1', name: cleanName, imageUrl: (track as any).imageUrl || '/placeholder-album.png' };
+
+    const updatedTrack: Track = {
       ...track,
+      name: cleanName,
+      artists: cleanArtists,
+      album: cleanAlbum,
       durationMs: realDurationMs,
     };
 
