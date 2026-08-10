@@ -513,26 +513,6 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           return;
         }
 
-        // If saavn-search URL, fetch direct seekable CDN link for instant Byte-Range seeking (<10ms)
-        const targetUrl = url;
-        if (targetUrl && (targetUrl.includes('/api/audio/saavn-search') || targetUrl.startsWith('saavn:'))) {
-          try {
-            const fetchUrl = targetUrl.startsWith('saavn:') 
-              ? `/api/audio/saavn-search?query=${targetUrl.split(':')[1]}&format=json`
-              : `${targetUrl}&format=json`;
-            const saavnRes = await fetch(fetchUrl);
-            if (saavnRes.ok) {
-              const saavnData = await saavnRes.json();
-              if (saavnData?.url) {
-                url = saavnData.url;
-                console.log('[Player] Resolved direct seekable CDN URL:', saavnData.url.substring(0, 50));
-              }
-            }
-          } catch {
-            // Fallback to proxy stream URL
-          }
-        }
-
         // Play via instant HTML5 Audio
         setIsYouTube(false);
         if (youtubePlayerRef.current && typeof youtubePlayerRef.current.pauseVideo === 'function') {
