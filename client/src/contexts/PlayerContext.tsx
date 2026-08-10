@@ -198,116 +198,23 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
   }, [isYouTube]);
 
-  // Track transition flag to prevent MediaSession notification teardown during autoplay or stream loading
-  const isTransitioningRef = useRef<boolean>(false);
-  const lastTrackEndTimestampRef = useRef<number>(0);
-
-  // Stable ref for MediaSession action handlers to prevent stale closure bugs
-  const actionHandlersRef = useRef({
-    togglePlayPause: () => {},
-    next: () => {},
-    previous: () => {},
-    seek: (_time: number) => {},
-    pause: () => {},
-    resume: () => {},
-  });
-
-  /**
-   * Extract and upgrade artwork to maximum resolution for OS MediaSession notification (1024x1024 / 500x500 / 640x640)
-   */
-  const getHighResNotificationArtwork = (track: Track | null): string => {
-    if (!track) return '';
-
-    const albumObj = track.album as any;
-
-    // 1. Check images array if present (Spotify / Apple format)
-    if (Array.isArray(albumObj?.images) && albumObj.images.length > 0) {
-      const sorted = [...albumObj.images].sort((a, b) => (b.width || 0) - (a.width || 0));
-      if (sorted[0]?.url) {
-        return upgradeImageUrl(sorted[0].url);
-      }
-    }
-
-    const rawUrl = albumObj?.imageUrl || albumObj?.url || (track as any)?.imageUrl || '';
-    if (!rawUrl) return '';
-
-    return upgradeImageUrl(rawUrl);
-  };
-
-  const upgradeImageUrl = (url: string): string => {
-    if (!url) return '';
-
-    // JioSaavn CDN: Upgrade 50x50 and 150x150 thumbnails to 500x500 / 1024x1024
-    if (url.includes('saavncdn.com')) {
-      return url.replace(/50x50/g, '500x500').replace(/150x150/g, '500x500');
-    }
-
-    // Spotify CDN: Upgrade low-res 300x300 (1e02) or 64x64 (4851) to 640x640 (b273)
-    if (url.includes('i.scdn.co') || url.includes('spotifycdn.com')) {
-      return url.replace(/ab67616d00001e02/g, 'ab67616d0000b273')
-                .replace(/ab67616d00004851/g, 'ab67616d0000b273');
-    }
-
-    // YouTube Thumbnails: Upgrade default/hqdefault to maxresdefault (1280x720)
-    if (url.includes('ytimg.com')) {
-      return url.replace(/\/(default|hqdefault|mqdefault|sddefault)\.jpg/g, '/maxresdefault.jpg');
-    }
-
-    // Google User Content / YouTube Music Avatars: Upgrade =s120-c to =s1024-c
-    if (url.includes('ggpht.com') || url.includes('googleusercontent.com')) {
-      return url.replace(/=s\d+(-c)?/g, '=s1024-c').replace(/=w\d+-h\d+/g, '=w1024-h1024');
-    }
-
-    // Apple Music / iTunes: Upgrade 100x100bb or 600x600bb to 1024x1024bb
-    if (url.includes('mzstatic.com')) {
-      return url.replace(/\/\d+x\d+bb/g, '/1024x1024bb');
-    }
-
-    // Unsplash: Upgrade quality and width
-    if (url.includes('images.unsplash.com')) {
-      return url.replace(/w=\d+/g, 'w=1024').replace(/q=\d+/g, 'q=95');
-    }
-
-    return url;
-  };
-
   /**
    * Update OS Media Session (Lock Screen & Background Player Notification)
    */
   const updateMediaSession = (track: Track | null, isPlaying: boolean, durationSec = 0, currentSec = 0) => {
-    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
+    if (typeof navigator === 'undefined' || !('mediaSession' in navigator) || !track) return;
 
     try {
-      if (track) {
-        const coverUrl = getHighResNotificationArtwork(track);
-        const mimeType = coverUrl.endsWith('.png') ? 'image/png' : 'image/jpeg';
-        const artwork = coverUrl ? [
-          { src: coverUrl, sizes: '96x96', type: mimeType },
-          { src: coverUrl, sizes: '128x128', type: mimeType },
-          { src: coverUrl, sizes: '192x192', type: mimeType },
-          { src: coverUrl, sizes: '256x256', type: mimeType },
-          { src: coverUrl, sizes: '384x384', type: mimeType },
-          { src: coverUrl, sizes: '512x512', type: mimeType },
-          { src: coverUrl, sizes: '1024x1024', type: mimeType },
-        ] : [
-          { src: '/pwa-192x192.png', sizes: '192x192', type: 'image/png' },
-          { src: '/pwa-512x512.png', sizes: '512x512', type: 'image/png' },
-        ];
+      const coverUrl = (track.album as any)?.imageUrl || (track.album as any)?.images?.[0]?.url || '';
+      
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: track.name,
+        artist: track.artists ? track.artists.map((a) => a.name).join(', ') : 'SK Music',
+        album: track.album?.name || 'SK Music',
+        artwork: coverUrl ? [{ src: coverUrl, sizes: '300x300', type: 'image/jpeg' }] : [],
+      });
 
-        navigator.mediaSession.metadata = new MediaMetadata({
-          title: track.name || 'SK Music',
-          artist: track.artists && track.artists.length > 0 ? track.artists.map((a) => a.name).join(', ') : 'SK Music',
-          album: track.album?.name || 'SK Music',
-          artwork: artwork,
-        });
-      }
-
-      // Synchronize OS playback state: stay 'playing' during transitions to prevent Android notification dismissal
-      if (isPlaying || isTransitioningRef.current) {
-        navigator.mediaSession.playbackState = 'playing';
-      } else {
-        navigator.mediaSession.playbackState = 'paused';
-      }
+      navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
 
       if (durationSec > 0 && 'setPositionState' in navigator.mediaSession) {
         try {
@@ -319,7 +226,7 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         } catch {}
       }
     } catch (e) {
-      console.warn('MediaSession update error:', e);
+      console.warn('MediaSession error:', e);
     }
   };
 
@@ -331,60 +238,6 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       updateMediaSession(state.currentTrack, state.isPlaying, state.duration, state.currentTime);
     }
   }, [state.currentTrack, state.isPlaying]);
-
-  /**
-   * Initialize persistent OS Media Session & Action Handlers on application load
-   */
-  useEffect(() => {
-    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
-
-    // 1. As soon as SK Music opens, initialize persistent media notification integration
-    try {
-      if (!navigator.mediaSession.metadata) {
-        navigator.mediaSession.metadata = new MediaMetadata({
-          title: 'SK Music',
-          artist: 'Select a track to play',
-          album: 'SK Music',
-          artwork: [
-            { src: '/pwa-192x192.png', sizes: '192x192', type: 'image/png' },
-            { src: '/pwa-512x512.png', sizes: '512x512', type: 'image/png' },
-          ],
-        });
-        navigator.mediaSession.playbackState = 'paused';
-      }
-    } catch (e) {
-      console.warn('MediaSession initial setup failed:', e);
-    }
-
-    // 2. Register persistent MediaSession control action handlers using actionHandlersRef bridge
-    const actionMap: [MediaSessionAction, MediaSessionActionHandler][] = [
-      ['play', () => actionHandlersRef.current.resume()],
-      ['pause', () => actionHandlersRef.current.pause()],
-      ['previoustrack', () => actionHandlersRef.current.previous()],
-      ['nexttrack', () => actionHandlersRef.current.next()],
-      ['seekto', (details) => {
-        if (details.seekTime !== undefined && details.seekTime !== null) {
-          actionHandlersRef.current.seek(details.seekTime);
-        }
-      }],
-      ['seekbackward', (details) => {
-        const skip = details.seekOffset || 10;
-        actionHandlersRef.current.seek(Math.max(0, stateRef.current.currentTime - skip));
-      }],
-      ['seekforward', (details) => {
-        const skip = details.seekOffset || 10;
-        actionHandlersRef.current.seek(Math.min(stateRef.current.duration, stateRef.current.currentTime + skip));
-      }],
-    ];
-
-    for (const [action, handler] of actionMap) {
-      try {
-        navigator.mediaSession.setActionHandler(action, handler);
-      } catch (e) {
-        // Action not supported in this environment
-      }
-    }
-  }, []);
 
   /**
    * Initialize audio element with background & lockscreen playback permissions
@@ -407,26 +260,20 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     });
 
     audio.addEventListener('ended', () => {
-      isTransitioningRef.current = true;
       handleTrackEnd();
     });
 
     audio.addEventListener('play', () => {
-      isTransitioningRef.current = false;
       setState((prev) => ({ ...prev, isPlaying: true }));
-      const curTrack = stateRef.current.currentTrack;
-      if (curTrack) {
-        updateMediaSession(curTrack, true, audio.duration, audio.currentTime);
+      if (state.currentTrack) {
+        updateMediaSession(state.currentTrack, true, audio.duration, audio.currentTime);
       }
     });
 
     audio.addEventListener('pause', () => {
-      // Do not clear or reset MediaSession if pause is due to song end or autoplay track transition
-      if (audio.ended || isTransitioningRef.current) return;
       setState((prev) => ({ ...prev, isPlaying: false }));
-      const curTrack = stateRef.current.currentTrack;
-      if (curTrack) {
-        updateMediaSession(curTrack, false, audio.duration, audio.currentTime);
+      if (state.currentTrack) {
+        updateMediaSession(state.currentTrack, false, audio.duration, audio.currentTime);
       }
     });
 
@@ -453,10 +300,6 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     if (!audio) return;
 
     try {
-      // Mark track transition in progress so MediaSession notification remains active
-      isTransitioningRef.current = true;
-      updateMediaSession(track, true);
-
       // Finalise tracking for the previous track before switching
       finaliseTracking();
 
@@ -872,7 +715,7 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
                     const shuffledResults = [...results].sort(() => Math.random() - 0.5);
 
                     const parsed: Track[] = shuffledResults.map((item: any) => {
-                      const songId = item.id ? (item.id.startsWith('jio_') || item.id.startsWith('yt-') ? item.id : `jio_${item.id}`) : `jio_${Math.random()}`;
+                      const songId = item.id ? (item.id.startsWith('yt-') ? item.id : `yt-${item.id}`) : `yt-${Math.random()}`;
                       const rawImg = Array.isArray(item.image)
                         ? (item.image[2]?.link || item.image[1]?.link || item.image[0]?.link || item.image[0]?.url)
                         : (item.image || '/placeholder-album.png');
@@ -970,13 +813,6 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
    * Handle track end
    */
   function handleTrackEnd(): void {
-    const now = Date.now();
-    if (now - lastTrackEndTimestampRef.current < 1500) {
-      console.warn('[PLAYER] Suppressed rapid track end trigger to prevent skipping loop');
-      return;
-    }
-    lastTrackEndTimestampRef.current = now;
-
     const current = stateRef.current;
     // Report completion for the track that just ended
     if (current.currentTrack && trackingRef.current && !trackingRef.current.reported) {
@@ -1092,17 +928,40 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }));
   };
 
-  // Keep actionHandlersRef continuously updated with latest player functions
+  /**
+   * Register OS Media Session action handlers for mobile background playback & lockscreen controls
+   */
   useEffect(() => {
-    actionHandlersRef.current = {
-      togglePlayPause,
-      next,
-      previous,
-      seek,
-      pause,
-      resume,
-    };
-  }, [togglePlayPause, next, previous, seek, pause, resume]);
+    if (typeof navigator !== 'undefined' && 'mediaSession' in navigator) {
+      try {
+        navigator.mediaSession.setActionHandler('play', () => {
+          if (isYouTube && youtubePlayerRef.current && typeof youtubePlayerRef.current.playVideo === 'function') {
+            youtubePlayerRef.current.playVideo();
+          } else {
+            audioRef.current?.play();
+          }
+          setState((prev) => ({ ...prev, isPlaying: true }));
+        });
+
+        navigator.mediaSession.setActionHandler('pause', () => {
+          if (isYouTube && youtubePlayerRef.current && typeof youtubePlayerRef.current.pauseVideo === 'function') {
+            youtubePlayerRef.current.pauseVideo();
+          } else {
+            audioRef.current?.pause();
+          }
+          setState((prev) => ({ ...prev, isPlaying: false }));
+        });
+
+        navigator.mediaSession.setActionHandler('previoustrack', () => previous());
+        navigator.mediaSession.setActionHandler('nexttrack', () => next());
+        navigator.mediaSession.setActionHandler('seekto', (details) => {
+          if (details.seekTime !== undefined) seek(details.seekTime);
+        });
+      } catch (e) {
+        console.warn('MediaSession handler registration failed:', e);
+      }
+    }
+  }, [state.currentTrack, state.isPlaying, isYouTube]);
 
   const value: PlayerContextType = {
     ...state,
