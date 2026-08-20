@@ -1,6 +1,14 @@
 {
   "rewrites": [
     {
+      "source": "/health",
+      "destination": "https://1d7de10f4a7bff65-106-215-182-199.serveousercotent.com/health"
+    },
+    {
+      "source": "/api/:path*",
+      "destination": "https://1d7de10f4a7bff65-106-215-182-199.serveousercotent.com/api/:path*"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
