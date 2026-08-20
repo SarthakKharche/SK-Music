@@ -48,7 +48,7 @@ const LoginPage: React.FC = () => {
 
         {/* Login Button */}
         <a
-          href="/api/auth/google"
+          href={`${import.meta.env.VITE_API_URL || '/api'}/auth/google`}
           className="w-full bg-white text-spotify-black font-semibold py-3 px-6 rounded-full 
                      hover:bg-gray-100 transition-colors flex items-center justify-center gap-3"
         >
