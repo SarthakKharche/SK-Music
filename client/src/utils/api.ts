@@ -1,6 +1,7 @@
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || '/api';
+export const DEFAULT_SERVER_URL = 'https://1d7de10f4a7bff65-106-215-182-199.serveousercontent.com/api';
+const API_URL = import.meta.env.VITE_API_URL || DEFAULT_SERVER_URL;
 
 /**
  * Axios instance with default configuration

@@ -3,10 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { FiMusic } from 'react-icons/fi';
 import { FcGoogle } from 'react-icons/fc';
 import { useAuth } from '../contexts/AuthContext';
+import { DEFAULT_SERVER_URL } from '../utils/api';
 
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const apiBaseUrl = import.meta.env.VITE_API_URL || DEFAULT_SERVER_URL;
 
   useEffect(() => {
     const token = localStorage.getItem('authToken');
@@ -48,7 +50,7 @@ const LoginPage: React.FC = () => {
 
         {/* Login Button */}
         <a
-          href={`${import.meta.env.VITE_API_URL || '/api'}/auth/google`}
+          href={`${apiBaseUrl}/auth/google`}
           className="w-full bg-white text-spotify-black font-semibold py-3 px-6 rounded-full 
                      hover:bg-gray-100 transition-colors flex items-center justify-center gap-3"
         >
