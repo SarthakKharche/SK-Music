@@ -2,11 +2,11 @@
   "rewrites": [
     {
       "source": "/health",
-      "destination": "https://sensitivity-herb-person-searches.trycloudflare.com/health"
+      "destination": "https://zoo-flat-molecules-minute.trycloudflare.com/health"
     },
     {
       "source": "/api/:path*",
-      "destination": "https://sensitivity-herb-person-searches.trycloudflare.com/api/:path*"
+      "destination": "https://zoo-flat-molecules-minute.trycloudflare.com/api/:path*"
     },
     {
       "source": "/(.*)",
