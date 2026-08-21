@@ -2,11 +2,11 @@
   "rewrites": [
     {
       "source": "/health",
-      "destination": "https://1d7de10f4a7bff65-106-215-182-199.serveousercontent.com/health"
+      "destination": "https://rise-yeast-ottawa-fun.trycloudflare.com/health"
     },
     {
       "source": "/api/:path*",
-      "destination": "https://1d7de10f4a7bff65-106-215-182-199.serveousercontent.com/api/:path*"
+      "destination": "https://rise-yeast-ottawa-fun.trycloudflare.com/api/:path*"
     },
     {
       "source": "/(.*)",

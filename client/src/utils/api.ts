@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-export const DEFAULT_SERVER_URL = 'https://1d7de10f4a7bff65-106-215-182-199.serveousercontent.com/api';
+export const DEFAULT_SERVER_URL = 'https://rise-yeast-ottawa-fun.trycloudflare.com/api';
 const API_URL = import.meta.env.VITE_API_URL || DEFAULT_SERVER_URL;
 
 /**
