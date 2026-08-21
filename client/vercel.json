@@ -2,11 +2,11 @@
   "rewrites": [
     {
       "source": "/health",
-      "destination": "https://rise-yeast-ottawa-fun.trycloudflare.com/health"
+      "destination": "https://sensitivity-herb-person-searches.trycloudflare.com/health"
     },
     {
       "source": "/api/:path*",
-      "destination": "https://rise-yeast-ottawa-fun.trycloudflare.com/api/:path*"
+      "destination": "https://sensitivity-herb-person-searches.trycloudflare.com/api/:path*"
     },
     {
       "source": "/(.*)",
