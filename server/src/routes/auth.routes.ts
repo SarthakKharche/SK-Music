@@ -10,6 +10,18 @@ const router = Router();
 const spotifyService = new SpotifyService();
 
 /**
+ * GET /api/auth/google/url
+ * Return Google OAuth URL for direct browser redirect (bypasses ngrok warning)
+ */
+router.get('/google/url', (_req, res) => {
+  const redirectUri = process.env.GOOGLE_REDIRECT_URI || 'https://sk-music-xi.vercel.app/api/auth/google/callback';
+  const clientId = process.env.GOOGLE_CLIENT_ID || '';
+  const scope = encodeURIComponent('profile email https://www.googleapis.com/auth/youtube');
+  const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${scope}&access_type=offline&prompt=consent`;
+  res.json({ url });
+});
+
+/**
  * GET /api/auth/google
  * Initiate Google OAuth flow
  */

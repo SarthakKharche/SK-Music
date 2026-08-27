@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { FiMusic } from 'react-icons/fi';
 import { FcGoogle } from 'react-icons/fc';
 import { useAuth } from '../contexts/AuthContext';
-import { DEFAULT_SERVER_URL } from '../utils/api';
+import api, { DEFAULT_SERVER_URL } from '../utils/api';
 
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
@@ -16,12 +16,19 @@ const LoginPage: React.FC = () => {
       navigate('/', { replace: true });
     }
   }, [user, navigate]);
-  const handleGoogleLogin = (e: React.MouseEvent) => {
+
+  const handleGoogleLogin = async (e: React.MouseEvent) => {
     e.preventDefault();
-    // Set Ngrok skip cookie so browser redirects bypass the free tier warning page
-    document.cookie = "ngrok-skip-browser-warning=true; path=/; max-age=31536000";
-    
-    // Open Google OAuth redirect directly
+    try {
+      // Axios request sends ngrok-skip-browser-warning header, bypassing ngrok warning screen completely
+      const res = await api.get('/auth/google/url');
+      if (res.data?.url) {
+        window.location.href = res.data.url;
+        return;
+      }
+    } catch (err) {
+      console.warn('Fallback to direct endpoint redirect:', err);
+    }
     window.location.href = `${apiBaseUrl}/auth/google`;
   };
 
