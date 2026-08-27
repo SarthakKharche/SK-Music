@@ -18,7 +18,7 @@ const LoginPage: React.FC = () => {
   const handleGoogleLogin = (e: React.MouseEvent) => {
     e.preventDefault();
     const clientId = '377444962763-ljne0lbkk2kl9qg6k87ali9ocosnlk0a.apps.googleusercontent.com';
-    const redirectUri = `${window.location.origin}/auth/callback`;
+    const redirectUri = `${window.location.origin}/api/auth/google/callback`;
     const scope = encodeURIComponent('profile email https://www.googleapis.com/auth/youtube');
     
     // Navigate directly to accounts.google.com (100% bypasses Ngrok browser redirect warnings)
