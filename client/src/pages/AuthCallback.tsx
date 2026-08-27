@@ -8,11 +8,31 @@ const AuthCallback: React.FC = () => {
 
   useEffect(() => {
     const token = searchParams.get('token');
+    const code = searchParams.get('code');
 
     if (token) {
       localStorage.setItem('authToken', token);
       login(token).catch(console.warn).finally(() => {
         window.location.href = '/';
+      });
+    } else if (code) {
+      import('../utils/api').then(({ default: api }) => {
+        api.post('/auth/google/code-exchange', { code })
+          .then((res) => {
+            const authToken = res.data?.token;
+            if (authToken) {
+              localStorage.setItem('authToken', authToken);
+              return login(authToken);
+            }
+            throw new Error('No token returned');
+          })
+          .catch((err) => {
+            console.error('Code exchange failed:', err);
+            window.location.href = '/login';
+          })
+          .finally(() => {
+            window.location.href = '/';
+          });
       });
     } else {
       window.location.href = '/login';

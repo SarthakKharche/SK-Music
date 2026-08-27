@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import passport from 'passport';
 import jwt from 'jsonwebtoken';
+import axios from 'axios';
+import CryptoJS from 'crypto-js';
 import { isAuthenticated } from '../middleware/auth.middleware';
 import { SpotifyService } from '../services/spotify.service';
 import { getFirestore } from '../config/firebase';
@@ -24,11 +26,93 @@ router.get('/set-ngrok-cookie', (_req, res) => {
  * Return Google OAuth URL for direct browser redirect (bypasses ngrok warning)
  */
 router.get('/google/url', (_req, res) => {
-  const redirectUri = process.env.GOOGLE_REDIRECT_URI || 'https://sk-music-xi.vercel.app/api/auth/google/callback';
+  const targetClient = (process.env.CLIENT_URL || 'https://sk-music-xi.vercel.app').replace(/\/+$/, '');
+  const redirectUri = `${targetClient}/auth/callback`;
   const clientId = process.env.GOOGLE_CLIENT_ID || '';
   const scope = encodeURIComponent('profile email https://www.googleapis.com/auth/youtube');
   const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${scope}&access_type=offline&prompt=consent`;
   res.json({ url });
+});
+
+/**
+ * POST /api/auth/google/code-exchange
+ * Exchange Google OAuth authorization code for session JWT token via Axios (100% bypasses Ngrok browser warning)
+ */
+router.post('/google/code-exchange', async (req, res): Promise<any> => {
+  try {
+    const { code } = req.body;
+    if (!code) {
+      return res.status(400).json({ error: 'Authorization code is required' });
+    }
+
+    const targetClient = (process.env.CLIENT_URL || 'https://sk-music-xi.vercel.app').replace(/\/+$/, '');
+    const redirectUri = `${targetClient}/auth/callback`;
+
+    const tokenRes = await axios.post('https://oauth2.googleapis.com/token', {
+      code,
+      client_id: process.env.GOOGLE_CLIENT_ID,
+      client_secret: process.env.GOOGLE_CLIENT_SECRET,
+      redirect_uri: redirectUri,
+      grant_type: 'authorization_code',
+    });
+
+    const { access_token, refresh_token } = tokenRes.data;
+
+    // Fetch Google user profile
+    const profileRes = await axios.get('https://www.googleapis.com/oauth2/v2/userinfo', {
+      headers: { Authorization: `Bearer ${access_token}` },
+    });
+
+    const profile = profileRes.data;
+    const db = getFirestore();
+    const userRef = db.collection('users').doc(profile.id);
+    const userDoc = await userRef.get();
+
+    const secret = process.env.JWT_SECRET || 'secret';
+    const googleAccessToken = CryptoJS.AES.encrypt(access_token, secret).toString();
+    const googleRefreshToken = refresh_token
+      ? CryptoJS.AES.encrypt(refresh_token, secret).toString()
+      : undefined;
+
+    let user: User;
+    if (!userDoc.exists) {
+      user = {
+        uid: profile.id,
+        email: profile.email || '',
+        name: profile.name || '',
+        picture: profile.picture || '',
+        provider: 'google',
+        spotifyConnected: false,
+        googleAccessToken,
+        googleRefreshToken,
+        googleTokenExpiry: new Date(Date.now() + 3600 * 1000).toISOString(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      await userRef.set(user);
+    } else {
+      user = userDoc.data() as User;
+      const updateData: any = {
+        googleAccessToken,
+        googleTokenExpiry: new Date(Date.now() + 3600 * 1000).toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      if (googleRefreshToken) updateData.googleRefreshToken = googleRefreshToken;
+      await userRef.update(updateData);
+      user = { ...user, ...updateData };
+    }
+
+    const token = jwt.sign(
+      { uid: user.uid, email: user.email },
+      secret,
+      { expiresIn: '30d' }
+    );
+
+    return res.json({ token, user });
+  } catch (err: any) {
+    console.error('Google code exchange error:', err?.response?.data || err?.message);
+    return res.status(500).json({ error: 'Failed to exchange authorization code' });
+  }
 });
 
 /**
