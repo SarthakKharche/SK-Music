@@ -3,12 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { FiMusic } from 'react-icons/fi';
 import { FcGoogle } from 'react-icons/fc';
 import { useAuth } from '../contexts/AuthContext';
-import api, { DEFAULT_SERVER_URL } from '../utils/api';
 
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const apiBaseUrl = import.meta.env.VITE_API_URL || DEFAULT_SERVER_URL;
 
   useEffect(() => {
     const token = localStorage.getItem('authToken');
@@ -17,22 +15,15 @@ const LoginPage: React.FC = () => {
     }
   }, [user, navigate]);
 
-  const handleGoogleLogin = async (e: React.MouseEvent) => {
+  const handleGoogleLogin = (e: React.MouseEvent) => {
     e.preventDefault();
-    try {
-      // Set Ngrok bypass cookie on domain via Axios header
-      await api.get('/auth/set-ngrok-cookie');
-      
-      // Axios request sends ngrok-skip-browser-warning header, getting Google OAuth URL directly
-      const res = await api.get('/auth/google/url');
-      if (res.data?.url) {
-        window.location.href = res.data.url;
-        return;
-      }
-    } catch (err) {
-      console.warn('Fallback to direct endpoint redirect:', err);
-    }
-    window.location.href = `${apiBaseUrl}/auth/google`;
+    const clientId = '377444962763-ljne0lbkk2kl9qg6k87ali9ocosnlk0a.apps.googleusercontent.com';
+    const redirectUri = `${window.location.origin}/auth/callback`;
+    const scope = encodeURIComponent('profile email https://www.googleapis.com/auth/youtube');
+    
+    // Navigate directly to accounts.google.com (100% bypasses Ngrok browser redirect warnings)
+    const googleOAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${scope}&access_type=offline&prompt=consent`;
+    window.location.href = googleOAuthUrl;
   };
 
   return (
