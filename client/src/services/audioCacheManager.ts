@@ -170,6 +170,7 @@ class AudioCacheManager {
         timeout: 35000,
         headers: {
           'Accept': 'audio/mpeg, audio/mp4, audio/aac, audio/*, application/octet-stream',
+          'ngrok-skip-browser-warning': 'true',
         },
       });
 
