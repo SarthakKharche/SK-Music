@@ -41,6 +41,12 @@ app.use(cors({
   credentials: true,
 }));
 
+// Set Ngrok skip header on all responses
+app.use((_req, res, next) => {
+  res.setHeader('ngrok-skip-browser-warning', 'true');
+  next();
+});
+
 // Body parsing middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
