@@ -16,6 +16,15 @@ const LoginPage: React.FC = () => {
       navigate('/', { replace: true });
     }
   }, [user, navigate]);
+  const handleGoogleLogin = (e: React.MouseEvent) => {
+    e.preventDefault();
+    // Set Ngrok skip cookie so browser redirects bypass the free tier warning page
+    document.cookie = "ngrok-skip-browser-warning=true; path=/; max-age=31536000";
+    
+    // Open Google OAuth redirect directly
+    window.location.href = `${apiBaseUrl}/auth/google`;
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-spotify-black via-spotify-dark to-spotify-green flex items-center justify-center p-4">
       <div className="max-w-md w-full bg-spotify-black rounded-2xl shadow-2xl p-8">
@@ -49,14 +58,14 @@ const LoginPage: React.FC = () => {
         </div>
 
         {/* Login Button */}
-        <a
-          href={`${apiBaseUrl}/auth/google`}
+        <button
+          onClick={handleGoogleLogin}
           className="w-full bg-white text-spotify-black font-semibold py-3 px-6 rounded-full 
-                     hover:bg-gray-100 transition-colors flex items-center justify-center gap-3"
+                     hover:bg-gray-100 transition-colors flex items-center justify-center gap-3 cursor-pointer"
         >
           <FcGoogle size={24} />
           <span>Continue with Google</span>
-        </a>
+        </button>
 
         {/* Legal Notice */}
         <p className="text-xs text-spotify-lightgray text-center mt-6">
