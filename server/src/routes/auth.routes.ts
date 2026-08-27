@@ -10,6 +10,16 @@ const router = Router();
 const spotifyService = new SpotifyService();
 
 /**
+ * GET /api/auth/set-ngrok-cookie
+ * Sets SameSite=None secure cookie on ngrok domain so Google OAuth callback bypasses warning page
+ */
+router.get('/set-ngrok-cookie', (_req, res) => {
+  res.setHeader('Set-Cookie', 'ngrok-skip-browser-warning=true; Path=/; Max-Age=31536000; SameSite=None; Secure');
+  res.setHeader('ngrok-skip-browser-warning', 'true');
+  res.json({ success: true });
+});
+
+/**
  * GET /api/auth/google/url
  * Return Google OAuth URL for direct browser redirect (bypasses ngrok warning)
  */

@@ -20,7 +20,10 @@ const LoginPage: React.FC = () => {
   const handleGoogleLogin = async (e: React.MouseEvent) => {
     e.preventDefault();
     try {
-      // Axios request sends ngrok-skip-browser-warning header, bypassing ngrok warning screen completely
+      // Set Ngrok bypass cookie on domain via Axios header
+      await api.get('/auth/set-ngrok-cookie');
+      
+      // Axios request sends ngrok-skip-browser-warning header, getting Google OAuth URL directly
       const res = await api.get('/auth/google/url');
       if (res.data?.url) {
         window.location.href = res.data.url;
