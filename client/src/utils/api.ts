@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-export const DEFAULT_SERVER_URL = 'https://zoo-flat-molecules-minute.trycloudflare.com/api';
+export const DEFAULT_SERVER_URL = 'https://impenetrably-unclean-alayah.ngrok-free.dev/api';
 const API_URL = import.meta.env.VITE_API_URL || DEFAULT_SERVER_URL;
 
 /**

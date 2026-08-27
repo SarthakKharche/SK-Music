@@ -2,11 +2,11 @@
   "rewrites": [
     {
       "source": "/health",
-      "destination": "https://zoo-flat-molecules-minute.trycloudflare.com/health"
+      "destination": "https://impenetrably-unclean-alayah.ngrok-free.dev/health"
     },
     {
       "source": "/api/:path*",
-      "destination": "https://zoo-flat-molecules-minute.trycloudflare.com/api/:path*"
+      "destination": "https://impenetrably-unclean-alayah.ngrok-free.dev/api/:path*"
     },
     {
       "source": "/(.*)",
